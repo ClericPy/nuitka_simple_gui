@@ -307,7 +307,7 @@ def main():
     ]
 
     window = sg.Window(
-        'Nuitka Toolkit',
+        'Nuitka Toolkit - Python %s' % sys.version,
         layout,
         # size=(800, 500),
         # font=('', 13),
