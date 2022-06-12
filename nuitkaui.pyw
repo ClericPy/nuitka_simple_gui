@@ -30,8 +30,29 @@ output_path = Path('./nuitka_output')
 proc = None
 values_cache = {}
 python_exe_path = Path(sys.executable).as_posix()
-if python_exe_path.endswith('pythonw.exe'):
+if python_exe_path.endswith('pythonw'):
+    python_exe_path = python_exe_path[:-1]
+elif python_exe_path.endswith('pythonw.exe'):
     python_exe_path = python_exe_path[:-5] + '.exe'
+
+
+def ensure_python_path():
+    global python_exe_path
+    while 1:
+        try:
+            output = subprocess.check_output([python_exe_path, '-V'])
+            if output.startswith(b'Python 3.'):
+                break
+            raise FileNotFoundError
+        except (FileNotFoundError):
+            python_exe_path = sg.popup_get_file(
+                'Choose a correct Python executable path',
+                'Wrong Python verson',
+            )
+            if not python_exe_path:
+                quit()
+
+
 
 
 def slice_by_size(seq, size):
@@ -201,6 +222,7 @@ def start_build(window):
     window['Start'].update(disabled=True)
     window['Cancel'].update(disabled=False)
     try:
+        output_path.mkdir(parents=True, exist_ok=True)
         print_sep('Build Start')
         proc = subprocess.Popen(cmd_list,
                                 stdout=subprocess.PIPE,
@@ -260,6 +282,7 @@ def start_build(window):
 
 
 def main():
+    ensure_python_path()
     sg.theme('default1')
     layout = [
         input_path('Entry Point:', 'file_path'),
