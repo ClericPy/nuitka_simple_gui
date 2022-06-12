@@ -16,8 +16,10 @@ A simple GUI app of nuitka
    1. How to build
       1. Download it
          1. source code or windows executable
-            1. [Source Code](https://github.com/ClericPy/nuitka_simple_gui/blob/master/nuitkaui.pyw)
-            2. [Windows executable](https://github.com/ClericPy/nuitka_simple_gui/releases/download/exe/nuitkaui.zip)
+            1. [Source Code](https://github.com/ClericPy/nuitka_simple_gui/blob/master/nuitkaui.py)
+               1. Auto find the Python executable path
+            2. [Windows executable](https://github.com/ClericPy/nuitka_simple_gui/releases/download/Windows_executable/nuitkaui.zip)
+               1. `Need to choose the Python executable path`
       2. Run it
          1. Windows friendly for now, double click it
             1. May also be compatible with other systems
