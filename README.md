@@ -2,11 +2,17 @@
 
 A simple GUI app of nuitka
 
-1. Why not upload to pypi.org?
+1. Features
+   1. Build python code into executable files with **nuitka**
+   2. Shortcut buttons for common usages
+   3. Compress folder to a zip file
+   4. Add a entrypoint bat file
+   5. Dependency and source code separation, only build the source code
+2. Why not upload to pypi.org?
    1. Not a good work yet
       1. Dirty code structure
       2. Just for simple use, and it does work
-2. User manual
+3. User manual
    1. How to build
       1. Download it
          1. source code or windows executable
@@ -20,9 +26,9 @@ A simple GUI app of nuitka
    2. How to use
       1. Run the app.bat for short, but it will flash a console
       2. Or you can run the app.exe in the folder app.dist
-3. Documentation?
+4. Documentation?
    1. GUI apps do not need docs.
-4. What's More?
+5. What's More?
    1. I think about it
 
 
