@@ -29,6 +29,9 @@ file_path: Path = Path('app')
 output_path = Path('./nuitka_output')
 proc = None
 values_cache = {}
+python_exe_path = Path(sys.executable).as_posix()
+if python_exe_path.endswith('pythonw.exe'):
+    python_exe_path = python_exe_path[:-5] + '.exe'
 
 
 def slice_by_size(seq, size):
@@ -113,7 +116,7 @@ def update_cmd(window, values):
     # print(values)
     global file_path, output_path
     cmd = [
-        Path(sys.executable).as_posix(),
+        python_exe_path,
         '-m',
         'nuitka',
     ]
@@ -155,7 +158,7 @@ def update_cmd(window, values):
                 pip_cmd.clear()
                 pip_cmd.extend(
                     [
-                        Path(sys.executable).as_posix(),
+                        python_exe_path,
                         '-m',
                         'pip',
                         'install',
