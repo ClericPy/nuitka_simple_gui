@@ -1,4 +1,5 @@
 import itertools
+import os
 import platform
 import shutil
 import subprocess
@@ -7,9 +8,10 @@ import threading
 import traceback
 import zipfile
 from pathlib import Path
-import os
+
 import PySimpleGUI as sg
 
+__version__ = '2022.6.13'
 old_stderr = sys.stderr
 _sys = platform.system()
 IS_WIN32 = _sys == 'Windows'
@@ -34,6 +36,7 @@ if python_exe_path.endswith('pythonw'):
     python_exe_path = python_exe_path[:-1]
 elif python_exe_path.endswith('pythonw.exe'):
     python_exe_path = python_exe_path[:-5] + '.exe'
+STOP_PROC = False
 
 
 def ensure_python_path():
@@ -46,13 +49,11 @@ def ensure_python_path():
             raise FileNotFoundError
         except (FileNotFoundError):
             python_exe_path = sg.popup_get_file(
-                'Choose a correct Python executable path',
+                'Choose a correct Python executable: python / python3 / {Path of Python}',
                 'Wrong Python verson',
             )
             if not python_exe_path:
                 quit()
-
-
 
 
 def slice_by_size(seq, size):
@@ -193,11 +194,11 @@ def update_cmd(window, values):
     file_path = Path(values['file_path'])
     cmd.append(file_path.as_posix())
     # print(subprocess.list2cmdline(cmd))
-    text = 'Build:\n'
+    text = f'Python:\n{sys.version}\nBuild:\n'
     text += subprocess.list2cmdline(cmd)
     if pip_cmd:
         text += '\nPip:\n' + subprocess.list2cmdline(pip_cmd)
-    window['output'].update(text)
+    window['output'].update(text + f'\n{"- " * 50}')
     cmd_list.clear()
     cmd_list.extend(cmd)
 
@@ -210,25 +211,28 @@ def update_plugin_list(e, items):
 
 
 def print_sep(text: str):
-    print('\n==================== %s ====================\n' %
+    print('\n==================== %s ====================\n\n' %
           text.center(20, ' '),
           end='',
           flush=True)
 
 
 def start_build(window):
-    global proc
-    proc = True
+    global proc, STOP_PROC
     window['Start'].update(disabled=True)
     window['Cancel'].update(disabled=False)
     try:
         output_path.mkdir(parents=True, exist_ok=True)
         print_sep('Build Start')
         proc = subprocess.Popen(cmd_list,
+                                shell=True,
                                 stdout=subprocess.PIPE,
                                 stderr=subprocess.STDOUT)
         for line in proc.stdout:
             print(line.decode('utf-8', 'replace'), end='', flush=True)
+            if STOP_PROC:
+                proc.kill()
+                break
         code = proc.wait()
         if code != 0:
             raise ValueError('Bad return code: %s' % code)
@@ -236,14 +240,18 @@ def start_build(window):
         if pip_args:
             print_sep('"pip install" Start')
             print(pip_args, flush=True)
-            _proc = subprocess.Popen(
+            proc = subprocess.Popen(
                 pip_cmd,
+                shell=True,
                 stdout=subprocess.PIPE,
                 stderr=subprocess.STDOUT,
             )
-            for line in _proc.stdout:
+            for line in proc.stdout:
                 print(line.decode('utf-8', 'replace'), end='', flush=True)
-            code = _proc.wait()
+                if STOP_PROC:
+                    proc.kill()
+                    break
+            code = proc.wait()
             if code != 0:
                 raise ValueError('Bad return code: %s' % code)
             print_sep('"pip install" Finished')
@@ -279,6 +287,7 @@ def start_build(window):
     proc = None
     window['Start'].update(disabled=False)
     window['Cancel'].update(disabled=True)
+    STOP_PROC = False
 
 
 def main():
@@ -333,7 +342,7 @@ def main():
     ]
 
     window = sg.Window(
-        'Nuitka Toolkit - Python %s' % sys.version,
+        'Nuitka Toolkit - v%s' % __version__,
         layout,
         # size=(800, 500),
         # font=('', 13),
@@ -352,9 +361,17 @@ def main():
         if output_path.is_dir():
             shutil.rmtree(output_path)
 
+    def kill_proc(event, values):
+        global STOP_PROC
+        if proc:
+            STOP_PROC = True
+            proc.kill()
+            proc.wait()
+
     actions = {
         'View': view_folder,
         'Remove': rm_cache_dir,
+        'Cancel': kill_proc,
     }
     error = None
     while True:
@@ -365,6 +382,7 @@ def main():
             callback = actions.get(event)
             if callback:
                 callback(event, values)
+                continue
             # print(event, values, flush=True, file=old_stderr)
             if event == sg.WIN_CLOSED or event == 'Quit':
                 if proc:
