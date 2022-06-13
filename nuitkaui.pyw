@@ -40,20 +40,31 @@ STOP_PROC = False
 
 
 def ensure_python_path():
-    global python_exe_path
-    while 1:
+
+    def check(python):
         try:
-            output = subprocess.check_output([python_exe_path, '-V'])
-            if output.startswith(b'Python 3.'):
-                break
-            raise FileNotFoundError
-        except (FileNotFoundError):
-            python_exe_path = sg.popup_get_file(
-                'Choose a correct Python executable: python / python3 / {Path of Python}',
-                'Wrong Python verson',
-            )
-            if not python_exe_path:
-                quit()
+            output = subprocess.check_output([python, '-V'], timeout=2)
+        except (TimeoutError, FileNotFoundError):
+            output = b''
+        return output.startswith(b'Python 3.')
+
+    global python_exe_path
+    default_python = None
+    while 1:
+        if check(python_exe_path):
+            return
+        if default_python is None:
+            if check('python'):
+                default_python = 'python'
+            else:
+                default_python = ''
+        python_exe_path = sg.popup_get_file(
+            'Choose a correct Python executable: python / python3 / {Path of Python}',
+            'Wrong Python verson',
+            default_path=default_python,
+        )
+        if not python_exe_path:
+            quit()
 
 
 def slice_by_size(seq, size):
