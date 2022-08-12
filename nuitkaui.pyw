@@ -86,10 +86,18 @@ def input_path(text, key, action=sg.FileBrowse):
 def init_checkbox():
     return [
         [
-            sg.Checkbox('--standalone',
-                        key='--standalone',
-                        default=True,
-                        enable_events=True),
+            [
+                sg.Radio('--standalone',
+                         group_id='module',
+                         key='--standalone',
+                         default=True,
+                         enable_events=True),
+                sg.Radio('--module',
+                         group_id='module',
+                         key='--module',
+                         default=True,
+                         enable_events=True),
+            ],
             sg.Checkbox('--nofollow-imports',
                         default=True,
                         key='--nofollow-imports',
@@ -332,7 +340,7 @@ def main():
                          key='--output-dir',
                          enable_events=True),
             sg.FolderBrowse(target=(sg.ThisRow, 1), enable_events=True),
-            sg.Button('View'),
+            sg.Button('View') if IS_WIN32 else '',
             sg.Button('Remove'),
         ],
         [
@@ -342,7 +350,7 @@ def main():
             sg.Checkbox('Compress', key='is_compress', enable_events=True),
             sg.Checkbox('start.bat',
                         key='need_start_file',
-                        default=True,
+                        default=False,
                         tooltip='Add start.bat as entry point.',
                         enable_events=True) if IS_WIN32 else [],
         ],
