@@ -95,7 +95,6 @@ def init_checkbox():
                 sg.Radio('--module',
                          group_id='module',
                          key='--module',
-                         default=True,
                          enable_events=True),
             ],
             sg.Checkbox('--nofollow-imports',
