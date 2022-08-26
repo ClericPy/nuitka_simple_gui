@@ -275,9 +275,15 @@ def start_build(window):
             print_sep('"pip install" Finished')
         app_name = file_path.stem
         if values_cache['need_start_file']:
-            with open(output_path / f'{app_name}.bat', 'w',
-                      encoding='utf-8') as f:
-                f.write(f'@echo off\ncd {app_name}.dist\nstart /B {app_name}')
+            subprocess.Popen(
+                [
+                    'mklink',
+                    f'{app_name}.exe',
+                    f'.\\{app_name}.dist\\{app_name}.exe',
+                ],
+                shell=True,
+                cwd=output_path.absolute(),
+            ).wait()
         if values_cache['is_compress']:
             print_sep('Compress Start')
             src_dir = output_path / f'{file_path.stem}.dist'
@@ -347,10 +353,10 @@ def main():
             sg.Button('Cancel', disabled=True),
             sg.Button('Quit'),
             sg.Checkbox('Compress', key='is_compress', enable_events=True),
-            sg.Checkbox('start.bat',
+            sg.Checkbox('shortcut.exe',
                         key='need_start_file',
                         default=False,
-                        tooltip='Add start.bat as entry point.',
+                        tooltip='Add app.exe for shortcut',
                         enable_events=True) if IS_WIN32 else [],
         ],
         [sg.Output(
