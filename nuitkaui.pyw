@@ -11,31 +11,53 @@ from pathlib import Path
 
 import PySimpleGUI as sg
 
-__version__ = '2022.6.13'
+__version__ = "2022.10.23"
 old_stderr = sys.stderr
 _sys = platform.system()
-IS_WIN32 = _sys == 'Windows'
-IS_MAC = _sys == 'OSX'
+IS_WIN32 = _sys == "Windows"
+IS_MAC = _sys == "OSX"
 _plugins_list = [
-    'anti-bloat', 'pylint-warnings', 'data-files', 'dill-compat', 'enum-compat',
-    'eventlet', 'gevent', 'gi', 'glfw', 'implicit-imports', 'kivy',
-    'matplotlib', 'multiprocessing', 'numpy', 'pbr-compat', 'pkg-resources',
-    'pmw-freezer', 'pyside6', 'pyqt5', 'pyside2', 'pyqt6', 'pywebview',
-    'tensorflow', 'tk-inter', 'torch', 'trio', 'pyzmq'
+    "anti-bloat",
+    "pylint-warnings",
+    "data-files",
+    "dill-compat",
+    "enum-compat",
+    "eventlet",
+    "gevent",
+    "gi",
+    "glfw",
+    "implicit-imports",
+    "kivy",
+    "matplotlib",
+    "multiprocessing",
+    "numpy",
+    "pbr-compat",
+    "pkg-resources",
+    "pmw-freezer",
+    "pyside6",
+    "pyqt5",
+    "pyside2",
+    "pyqt6",
+    "pywebview",
+    "tensorflow",
+    "tk-inter",
+    "torch",
+    "trio",
+    "pyzmq",
 ]
 plugins = {i: False for i in _plugins_list}
-cmd_list = []
-pip_args = []
-pip_cmd = []
-file_path: Path = Path('app')
-output_path = Path('./nuitka_output')
+cmd_list: list = []
+pip_args: list = []
+pip_cmd: list = []
+file_path: Path = Path("app")
+output_path = Path("./nuitka_output")
 proc = None
-values_cache = {}
+values_cache: dict = {}
 python_exe_path = Path(sys.executable).as_posix()
-if python_exe_path.endswith('pythonw'):
+if python_exe_path.endswith("pythonw"):
     python_exe_path = python_exe_path[:-1]
-elif python_exe_path.endswith('pythonw.exe'):
-    python_exe_path = python_exe_path[:-5] + '.exe'
+elif python_exe_path.endswith("pythonw.exe"):
+    python_exe_path = python_exe_path[:-5] + ".exe"
 STOP_PROC = False
 
 
@@ -43,10 +65,10 @@ def ensure_python_path():
 
     def check(python):
         try:
-            output = subprocess.check_output([python, '-V'], timeout=2)
+            output = subprocess.check_output([python, "-V"], timeout=2)
         except (TimeoutError, FileNotFoundError):
-            output = b''
-        return output.startswith(b'Python 3.')
+            output = b""
+        return output.startswith(b"Python 3.")
 
     global python_exe_path
     default_python = None
@@ -54,13 +76,13 @@ def ensure_python_path():
         if check(python_exe_path):
             return
         if default_python is None:
-            if check('python'):
-                default_python = 'python'
+            if check("python"):
+                default_python = "python"
             else:
-                default_python = ''
+                default_python = ""
         python_exe_path = sg.popup_get_file(
-            'Choose a correct Python executable: python / python3 / {Path of Python}',
-            'Wrong Python verson',
+            "Choose a correct Python executable: python / python3 / {Path of Python}",
+            "Wrong Python verson",
             default_path=default_python,
         )
         if not python_exe_path:
@@ -87,63 +109,77 @@ def init_checkbox():
     return [
         [
             [
-                sg.Radio('--standalone',
-                         group_id='module',
-                         key='--standalone',
-                         default=True,
-                         enable_events=True),
-                sg.Radio('--module',
-                         group_id='module',
-                         key='--module',
+                sg.Radio(
+                    "--standalone",
+                    group_id="module",
+                    key="--standalone",
+                    default=True,
+                    enable_events=True,
+                ),
+                sg.Radio("--module",
+                         group_id="module",
+                         key="--module",
                          enable_events=True),
             ],
-            sg.Checkbox('--nofollow-imports',
-                        default=True,
-                        key='--nofollow-imports',
-                        enable_events=True),
-            sg.Checkbox('--remove-output',
-                        key='--remove-output',
-                        default=True,
-                        enable_events=True),
-            sg.Checkbox('--no-pyi-file',
-                        key='--no-pyi-file',
+            sg.Checkbox(
+                "--nofollow-imports",
+                default=True,
+                key="--nofollow-imports",
+                enable_events=True,
+            ),
+            sg.Checkbox(
+                "--remove-output",
+                key="--remove-output",
+                default=True,
+                enable_events=True,
+            ),
+            sg.Checkbox("--no-pyi-file",
+                        key="--no-pyi-file",
                         default=True,
                         enable_events=True),
         ],
         [
             [
-                sg.Checkbox('--windows-disable-console',
-                            key='--windows-disable-console',
-                            enable_events=True),
-                sg.FileBrowse('--windows-icon',
-                              key='--windows-icon',
-                              file_types=(("icon", "*.ico *.exe"),),
-                              target=(sg.ThisRow, 1),
-                              enable_events=True),
+                sg.Checkbox(
+                    "--windows-disable-console",
+                    key="--windows-disable-console",
+                    enable_events=True,
+                ),
+                sg.FileBrowse(
+                    "--windows-icon",
+                    key="--windows-icon",
+                    file_types=(("icon", "*.ico *.exe"),),
+                    target=(sg.ThisRow, 1),
+                    enable_events=True,
+                ),
             ] if IS_WIN32 else [],
             [
-                sg.Checkbox('--macos-disable-console',
-                            key='--macos-disable-console',
-                            enable_events=True)
+                sg.Checkbox(
+                    "--macos-disable-console",
+                    key="--macos-disable-console",
+                    enable_events=True,
+                )
             ] if IS_MAC else [],
         ],
         [
-            sg.Radio('--mingw64',
-                     default=True,
-                     group_id='build_tool',
-                     key='--mingw64',
+            sg.Radio(
+                "--mingw64",
+                default=True,
+                group_id="build_tool",
+                key="--mingw64",
+                enable_events=True,
+            ),
+            sg.Radio("--clang",
+                     group_id="build_tool",
+                     key="--clang",
                      enable_events=True),
-            sg.Radio('--clang',
-                     group_id='build_tool',
-                     key='--clang',
-                     enable_events=True),
-            sg.Radio('None', group_id='build_tool', key='', enable_events=True),
+            sg.Radio("None", group_id="build_tool", key="", enable_events=True),
         ],
         [
             sg.Frame(
-                'Plugins',
+                "Plugins",
                 [[
-                    sg.Checkbox(i, key='_plugin_%s' % i, enable_events=True)
+                    sg.Checkbox(i, key="_plugin_%s" % i, enable_events=True)
                     for i in ii
                 ]
                  for ii in slice_by_size(plugins, 6)],
@@ -157,30 +193,30 @@ def update_cmd(window, values):
     global file_path, output_path
     cmd = [
         python_exe_path,
-        '-m',
-        'nuitka',
+        "-m",
+        "nuitka",
     ]
     for k, v in values.items():
         k = str(k)
         if v:
-            if k.startswith('--'):
-                if k in {'--include-package', '--include-module'}:
+            if k.startswith("--"):
+                if k in {"--include-package", "--include-module"}:
                     for _value in v.split():
-                        cmd.append(f'{k}={_value}')
-                elif k == '--windows-icon':
+                        cmd.append(f"{k}={_value}")
+                elif k == "--windows-icon":
                     p = Path(v).as_posix()
-                    if p.endswith('.exe'):
-                        cmd.append(f'--windows-icon-from-exe={p}')
-                    elif p.endswith('.ico'):
-                        cmd.append(f'--windows-icon-from-ico={p}')
-                elif k == '--output-dir':
+                    if p.endswith(".exe"):
+                        cmd.append(f"--windows-icon-from-exe={p}")
+                    elif p.endswith(".ico"):
+                        cmd.append(f"--windows-icon-from-ico={p}")
+                elif k == "--output-dir":
                     output_path = Path(v)
-                    cmd.append(f'--output-dir={output_path.as_posix()}')
-                elif k == '--other-args':
+                    cmd.append(f"--output-dir={output_path.as_posix()}")
+                elif k == "--other-args":
                     cmd.append(v)
                 else:
                     cmd.append(k)
-            elif k == 'pip_args':
+            elif k == "pip_args":
                 v_list = v.split(os.path.pathsep)
                 args = []
                 has_file = False
@@ -194,67 +230,70 @@ def update_cmd(window, values):
                 pip_args.clear()
                 pip_args.extend(set(args))
                 if has_file:
-                    window['pip_args'].update(' '.join(pip_args))
+                    window["pip_args"].update(" ".join(pip_args))
                 pip_cmd.clear()
+                pip_cmd.extend([
+                    python_exe_path,
+                    "-m",
+                    "pip",
+                    "install",
+                ])
+                pip_cmd.extend(pip_args)
                 pip_cmd.extend(
-                    [
-                        python_exe_path,
-                        '-m',
-                        'pip',
-                        'install',
-                    ] + pip_args +
-                    ['-t', (output_path / f'{file_path.stem}.dist').as_posix()])
+                    ["-t", (output_path / f"{file_path.stem}.dist").as_posix()])
     if IS_WIN32:
-        cmd.extend(['--include-module=pywin32_bootstrap'])
+        cmd.extend(["--include-module=pywin32_bootstrap"])
     for k, v in plugins.items():
         if v:
-            cmd.append('--enable-plugin=%s' % k)
-    file_path = Path(values['file_path'])
+            cmd.append("--enable-plugin=%s" % k)
+    file_path = Path(values["file_path"])
     cmd.append(file_path.as_posix())
     # print(subprocess.list2cmdline(cmd))
-    text = f'Python:\n{sys.version}\nBuild:\n'
+    text = f"Python:\n{sys.version}\nBuild:\n"
     text += subprocess.list2cmdline(cmd)
     if pip_cmd:
-        text += '\nPip:\n' + subprocess.list2cmdline(pip_cmd)
-    window['output'].update(text + f'\n{"- " * 50}')
+        text += "\nPip:\n" + subprocess.list2cmdline(pip_cmd)
+    window["output"].update(text + f'\n{"- " * 50}')
     cmd_list.clear()
     cmd_list.extend(cmd)
 
 
 def update_plugin_list(e, items):
     for k, v in items.items():
-        if str(k).startswith('_plugin_'):
+        if str(k).startswith("_plugin_"):
             key = k[8:]
             plugins[key] = v
 
 
 def print_sep(text: str):
-    print('\n==================== %s ====================\n\n' %
-          text.center(20, ' '),
-          end='',
-          flush=True)
+    print(
+        "\n==================== %s ====================\n\n" %
+        text.center(20, " "),
+        end="",
+        flush=True,
+    )
 
 
 def start_build(window):
     global proc, STOP_PROC
-    window['Start'].update(disabled=True)
-    window['Cancel'].update(disabled=False)
+    window["Start"].update(disabled=True)
+    window["Cancel"].update(disabled=False)
     try:
         output_path.mkdir(parents=True, exist_ok=True)
-        print_sep('Build Start')
+        print_sep("Build Start")
         proc = subprocess.Popen(cmd_list,
                                 shell=True,
                                 stdout=subprocess.PIPE,
                                 stderr=subprocess.STDOUT)
         for line in proc.stdout:
-            print(line.decode('utf-8', 'replace'), end='', flush=True)
+            print(line.decode("utf-8", "replace"), end="", flush=True)
             if STOP_PROC:
                 proc.kill()
                 break
         code = proc.wait()
         if code != 0:
-            raise ValueError('Bad return code: %s' % code)
-        print_sep('Build Success')
+            raise ValueError("Bad return code: %s" % code)
+        print_sep("Build Success")
         if pip_args:
             print_sep('"pip install" Start')
             print(pip_args, flush=True)
@@ -265,121 +304,128 @@ def start_build(window):
                 stderr=subprocess.STDOUT,
             )
             for line in proc.stdout:
-                print(line.decode('utf-8', 'replace'), end='', flush=True)
+                print(line.decode("utf-8", "replace"), end="", flush=True)
                 if STOP_PROC:
                     proc.kill()
                     break
             code = proc.wait()
             if code != 0:
-                raise ValueError('Bad return code: %s' % code)
+                raise ValueError("Bad return code: %s" % code)
             print_sep('"pip install" Finished')
         app_name = file_path.stem
-        if values_cache['need_start_file']:
+        if values_cache["need_start_file"]:
             subprocess.Popen(
                 [
-                    'mklink',
-                    f'{app_name}.exe',
-                    f'.\\{app_name}.dist\\{app_name}.exe',
+                    "mklink",
+                    f"{app_name}.exe",
+                    f".\\{app_name}.dist\\{app_name}.exe",
                 ],
                 shell=True,
                 cwd=output_path.absolute(),
             ).wait()
-        if values_cache['is_compress']:
-            print_sep('Compress Start')
-            src_dir = output_path / f'{file_path.stem}.dist'
+        if values_cache["is_compress"]:
+            print_sep("Compress Start")
+            src_dir = output_path / f"{file_path.stem}.dist"
             if src_dir.is_dir():
-                target = output_path / f'{file_path.stem}.zip'
+                target = output_path / f"{file_path.stem}.zip"
                 with zipfile.ZipFile(target,
-                                     'w',
+                                     "w",
                                      zipfile.ZIP_DEFLATED,
                                      compresslevel=9) as zf:
-                    for file in src_dir.rglob('*'):
+                    for file in src_dir.rglob("*"):
                         zf.write(file, file.relative_to(src_dir.parent))
-                    if values_cache['need_start_file']:
-                        zf.write(output_path / f'{app_name}.bat',
-                                 f'{app_name}.bat')
-                print_sep('Compress Finished')
+                    if values_cache["need_start_file"]:
+                        zf.write(output_path / f"{app_name}.bat",
+                                 f"{app_name}.bat")
+                print_sep("Compress Finished")
             else:
-                print(src_dir.absolute().as_posix(), 'is_dir:',
+                print(src_dir.absolute().as_posix(), "is_dir:",
                       src_dir.is_dir())
-                print_sep('Compress Skipped')
-        print_sep('Mission Completed')
+                print_sep("Compress Skipped")
+        print_sep("Mission Completed")
 
     except Exception:
         traceback.print_exc()
-        print_sep('Error')
+        print_sep("Error")
     proc = None
-    window['Start'].update(disabled=False)
-    window['Cancel'].update(disabled=True)
+    window["Start"].update(disabled=False)
+    window["Cancel"].update(disabled=True)
     STOP_PROC = False
 
 
 def main():
     ensure_python_path()
-    sg.theme('default1')
+    sg.theme("default1")
     layout = [
-        input_path('Entry Point:', 'file_path'),
+        input_path("Entry Point:", "file_path"),
         init_checkbox(),
         [
-            sg.Text('--include-package:'.ljust(20)),
-            sg.Input('',
-                     key='--include-package',
-                     tooltip='separate by Space',
-                     enable_events=True),
+            sg.Text("--include-package:".ljust(20)),
+            sg.Input(
+                "",
+                key="--include-package",
+                tooltip="separate by Space",
+                enable_events=True,
+            ),
         ],
         [
-            sg.Text('--include-module:'.ljust(20)),
-            sg.Input('',
-                     key='--include-module',
-                     tooltip='separate by Space',
-                     enable_events=True)
+            sg.Text("--include-module:".ljust(20)),
+            sg.Input(
+                "",
+                key="--include-module",
+                tooltip="separate by Space",
+                enable_events=True,
+            ),
         ],
         [
-            sg.Text('Custom Args:'.ljust(20)),
-            sg.Input('', key='--other-args', enable_events=True)
+            sg.Text("Custom Args:".ljust(20)),
+            sg.Input("", key="--other-args", enable_events=True),
         ],
-        input_path('Requirements:'.ljust(20), 'pip_args', sg.FilesBrowse),
+        input_path("Requirements:".ljust(20), "pip_args", sg.FilesBrowse),
         [
-            sg.Text('Output Path:'),
+            sg.Text("Output Path:"),
             sg.InputText(output_path.as_posix(),
-                         key='--output-dir',
+                         key="--output-dir",
                          enable_events=True),
             sg.FolderBrowse(target=(sg.ThisRow, 1), enable_events=True),
-            sg.Button('View') if IS_WIN32 else '',
-            sg.Button('Remove'),
+            sg.Button("View") if IS_WIN32 else "",
+            sg.Button("Remove"),
         ],
         [
-            sg.Button('Start', size=(None, 10)),
-            sg.Button('Cancel', disabled=True),
-            sg.Button('Quit'),
-            sg.Checkbox('Compress', key='is_compress', enable_events=True),
-            sg.Checkbox('shortcut.exe',
-                        key='need_start_file',
-                        default=False,
-                        tooltip='Add app.exe for shortcut',
-                        enable_events=True) if IS_WIN32 else [],
+            sg.Button("Start", size=(None, 10)),
+            sg.Button("Cancel", disabled=True),
+            sg.Button("Quit"),
+            sg.Checkbox("Compress", key="is_compress", enable_events=True),
+            sg.Checkbox(
+                "shortcut.exe",
+                key="need_start_file",
+                default=False,
+                tooltip="Add app.exe for shortcut",
+                enable_events=True,
+            ) if IS_WIN32 else [],
         ],
         [sg.Output(
-            key='output',
+            key="output",
             size=(80, 12),
         )],
     ]
 
     window = sg.Window(
-        'Nuitka Toolkit - v%s' % __version__,
+        "Nuitka Toolkit - v%s" % __version__,
         layout,
         # size=(800, 500),
         # font=('', 13),
         resizable=True,
-        finalize=True)
+        finalize=True,
+    )
 
     # window.maximize()
 
     def view_folder(event, values):
         if output_path.is_dir():
-            subprocess.run(['explorer', output_path.absolute()])
+            subprocess.run(["explorer", output_path.absolute()])
         else:
-            sg.popup_error(f'{output_path} is not a folder.')
+            sg.popup_error(f"{output_path} is not a folder.")
 
     def rm_cache_dir(event, values):
         if output_path.is_dir():
@@ -393,9 +439,9 @@ def main():
             proc.wait()
 
     actions = {
-        'View': view_folder,
-        'Remove': rm_cache_dir,
-        'Cancel': kill_proc,
+        "View": view_folder,
+        "Remove": rm_cache_dir,
+        "Cancel": kill_proc,
     }
     error = None
     while True:
@@ -408,7 +454,7 @@ def main():
                 callback(event, values)
                 continue
             # print(event, values, flush=True, file=old_stderr)
-            if event == sg.WIN_CLOSED or event == 'Quit':
+            if event == sg.WIN_CLOSED or event == "Quit":
                 if proc:
                     proc.kill()
                     proc.wait()
@@ -416,7 +462,7 @@ def main():
             # window['output'].update(values)
             update_plugin_list(event, values)
             update_cmd(window, values)
-            if event == 'Start' and not proc:
+            if event == "Start" and not proc:
                 threading.Thread(target=start_build,
                                  args=(window,),
                                  daemon=True).start()
