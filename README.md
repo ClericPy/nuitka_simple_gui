@@ -6,7 +6,7 @@ A simple GUI app of nuitka
    1. Build python code into executable files with **nuitka**
    2. Shortcut buttons for common usages
    3. Compress folder to a zip file
-   4. Add a entrypoint bat file
+   4. Add a symbolic link for start.exe
    5. Dependency and source code separation, only build the source code
 2. Why not upload to pypi.org?
    1. Not a good work yet
