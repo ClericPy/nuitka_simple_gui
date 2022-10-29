@@ -11,7 +11,7 @@ from pathlib import Path
 
 import PySimpleGUI as sg
 
-__version__ = "2022.10.23"
+__version__ = "2022.10.29"
 old_stderr = sys.stderr
 _sys = platform.system()
 IS_WIN32 = _sys == "Windows"
@@ -242,7 +242,9 @@ def update_cmd(window, values):
                 pip_cmd.extend(
                     ["-t", (output_path / f"{file_path.stem}.dist").as_posix()])
     if IS_WIN32:
-        cmd.extend(["--include-module=pywin32_bootstrap"])
+        from importlib.util import find_spec
+        if find_spec('pywin32_bootstrap') is not None:
+            cmd.extend(["--include-module=pywin32_bootstrap"])
     for k, v in plugins.items():
         if v:
             cmd.append("--enable-plugin=%s" % k)
@@ -411,7 +413,8 @@ def main():
     ]
 
     window = sg.Window(
-        "Nuitka Toolkit - v%s" % __version__,
+        "Nuitka Toolkit - v%s on %s" %
+        (__version__, sys.version.split(maxsplit=1)),
         layout,
         # size=(800, 500),
         # font=('', 13),
