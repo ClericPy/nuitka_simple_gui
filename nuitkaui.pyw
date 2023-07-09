@@ -254,7 +254,7 @@ def update_cmd(window, values):
     text = f"Python:\n{sys.version}\nBuild:\n"
     text += subprocess.list2cmdline(cmd)
     if pip_cmd:
-        text += "\nPip:\n" + subprocess.list2cmdline(pip_cmd)
+        text += "\n\n" + subprocess.list2cmdline(pip_cmd)
     window["output"].update(text + f'\n{"- " * 50}')
     cmd_list.clear()
     cmd_list.extend(cmd)
@@ -337,8 +337,8 @@ def start_build(window):
                     for file in src_dir.rglob("*"):
                         zf.write(file, file.relative_to(src_dir.parent))
                     if values_cache["need_start_file"]:
-                        zf.write(output_path / f"{app_name}.bat",
-                                 f"{app_name}.bat")
+                        zf.write(output_path / f"{app_name}.exe",
+                                 f"{app_name}.exe")
                 print_sep("Compress Finished")
             else:
                 print(src_dir.absolute().as_posix(), "is_dir:",
