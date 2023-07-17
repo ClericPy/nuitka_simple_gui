@@ -8,12 +8,16 @@ A simple GUI app of nuitka
    3. Compress folder to a zip file
    4. Add a symbolic link for start.exe
    5. Dependency and source code separation, only build the source code
+   6. add `onefile` mode(`2023.07.18`)
+   7. add `beep` after finished on windows(`2023.07.18`)
 2. Why not upload to pypi.org?
    1. Not a good work yet
       1. Dirty code structure
       2. Just for simple use, and it does work
 3. User manual
-   1. How to build
+   1. ENSURE you have installed gcc/MinGW64
+      1. use the cmdline args from GUI, and type them to terminal manual at the first using.
+   2. How to build
       1. Download it
          1. source code or windows executable
             1. [Source Code](https://github.com/ClericPy/nuitka_simple_gui/blob/master/nuitkaui.pyw)
@@ -25,7 +29,7 @@ A simple GUI app of nuitka
             1. May also be compatible with other systems
       3. View it
          1. click the **View** button of Output Path line.
-   2. How to use
+   3. How to use
       1. Run the app.bat for short, but it will flash a console
       2. Or you can run the app.exe in the folder app.dist
 4. Documentation?
