@@ -190,7 +190,6 @@ def init_checkbox():
         [
             sg.Radio(
                 "--mingw64",
-                default=True,
                 group_id="build_tool",
                 key="--mingw64",
                 enable_events=True,
@@ -199,7 +198,11 @@ def init_checkbox():
                      group_id="build_tool",
                      key="--clang",
                      enable_events=True),
-            sg.Radio("None", group_id="build_tool", key="", enable_events=True),
+            sg.Radio("None",
+                     default=True,
+                     group_id="build_tool",
+                     key="",
+                     enable_events=True),
         ],
         [
             sg.Frame(
@@ -224,20 +227,23 @@ def update_cmd(window, values):
     ]
     for k, v in values.items():
         k = str(k)
+        if k == '--onefile':
+            if v:
+                cmd.append(k)
+                window['--onefile-tempdir-spec'].update(disabled=False)
+                window['is_compress'].update(False, disabled=True)
+                window['need_start_file'].update(False, disabled=True)
+                if values['--onefile-tempdir-spec']:
+                    p = values["--onefile-tempdir-spec"]
+                    cmd.append(f'--onefile-tempdir-spec={p}')
+            else:
+                window['--onefile-tempdir-spec'].update(disabled=True)
+                window['is_compress'].update(disabled=False)
+                window['need_start_file'].update(disabled=False)
         if v:
             if k.startswith("--"):
-                if k in {'--onefile-tempdir-spec'}:
+                if k in {'--onefile-tempdir-spec', '--onefile'}:
                     continue
-                elif k == '--onefile':
-                    window['--onefile-tempdir-spec'].update(disabled=not v)
-                    if v:
-                        cmd.append(k)
-                        window['--onefile-tempdir-spec'].update(disabled=False)
-                        if values['--onefile-tempdir-spec']:
-                            p = values["--onefile-tempdir-spec"]
-                            cmd.append(f'--onefile-tempdir-spec={p}')
-                    else:
-                        window['--onefile-tempdir-spec'].update(disabled=True)
                 elif k in {"--include-package", "--include-module"}:
                     for _value in v.split():
                         cmd.append(f"{k}={_value}")
