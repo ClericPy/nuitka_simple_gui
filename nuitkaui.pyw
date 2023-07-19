@@ -15,7 +15,8 @@ __version__ = "2023.07.18"
 old_stderr = sys.stderr
 _sys = platform.system()
 IS_WIN32 = _sys == "Windows"
-IS_MAC = _sys == "OSX"
+IS_MAC = _sys in {"OSX", "Darwin"}
+IS_LINUX = _sys == "Linux"
 _plugins_list = [
     "anti-bloat",
     "pylint-warnings",
@@ -203,6 +204,12 @@ def init_checkbox():
                      group_id="build_tool",
                      key="",
                      enable_events=True),
+            sg.Checkbox(
+                "--assume-yes-for-downloads",
+                key="--assume-yes-for-downloads",
+                default=True,
+                enable_events=True,
+            ),
         ],
         [
             sg.Frame(
