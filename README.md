@@ -10,6 +10,7 @@ A simple GUI app of nuitka
    5. Dependency and source code separation, only build the source code
    6. add `onefile` mode(`2023.07.18`)
    7. add `beep` after finished on windows(`2023.07.18`)
+   7. add `dump-config` `load-config`(`2023.07.27`)
 2. Why not upload to pypi.org?
    1. Not a good work yet
       1. Dirty code structure

@@ -4,6 +4,7 @@ import platform
 import re
 import shutil
 import subprocess
+import json
 import sys
 import threading
 import traceback
@@ -54,6 +55,7 @@ pip_cmd: list = []
 file_path: Path = Path("app")
 output_path = Path("./nuitka_output")
 proc = None
+version_info = ''
 values_cache: dict = {}
 python_exe_path = Path(sys.executable).as_posix()
 if python_exe_path.endswith("pythonw"):
@@ -61,6 +63,7 @@ if python_exe_path.endswith("pythonw"):
 elif python_exe_path.endswith("pythonw.exe"):
     python_exe_path = python_exe_path[:-5] + ".exe"
 STOP_PROC = False
+non_cmd_events = {'dump_config', 'load_config', '--onefile-tempdir-spec'}
 
 
 def ensure_python_path():
@@ -72,22 +75,23 @@ def ensure_python_path():
                                   stdout=subprocess.PIPE,
                                   stdin=subprocess.PIPE,
                                   stderr=subprocess.STDOUT) as proc:
-                max_lines = 9
-                for index, line in enumerate(proc.stdout, 1):
+                for line in proc.stdout:
                     output += line
-                    if index >= max_lines:
+                    if b'Is it OK to download and put it in' in line:
                         break
         except (subprocess.TimeoutExpired, FileNotFoundError, Exception):
             output = b""
         text = output.decode(sys.getdefaultencoding(), "replace")
         text = re.sub(r'[\r\n]+', '\n', text)
-        if 'Nuitka will use gcc' in text:
-            choose = sg.popup(
-                text +
-                f"\nYou need to install gcc before press OK:\n{python} -m nuitka --version",
-                title="Error")
-            print(choose, flush=True)
-            return choose
+        if text:
+            global version_info
+            version_info = text
+            if 'Is it OK to download and put it in' in text:
+                choose = sg.popup(
+                    text +
+                    f"\nYou need to install gcc before press OK:\n{python} -m nuitka --version",
+                    title="Error")
+                return choose
         return bool(re.match(r'^[.0-9]+[\r\n]+', text))
 
     global python_exe_path
@@ -146,7 +150,7 @@ def init_checkbox():
                     enable_events=True,
                 ),
                 sg.Input(
-                    "",
+                    "./cache",
                     key="--onefile-tempdir-spec",
                     tooltip=r"""--onefile-tempdir-spec
 %TEMP%	User temporary file directory	C:\Users\...\AppData\Locals\Temp
@@ -242,6 +246,13 @@ def init_checkbox():
     ]
 
 
+def update_disabled(window, k, v):
+    if k == '--onefile':
+        window['--onefile-tempdir-spec'].update(disabled=not v)
+        window['is_compress'].update(disabled=v)
+        window['need_start_file'].update(disabled=v)
+
+
 def update_cmd(window, values):
     # print(values)
     global file_path, output_path
@@ -252,24 +263,19 @@ def update_cmd(window, values):
     ]
     for k, v in values.items():
         k = str(k)
+        update_disabled(window, k, v)
         if k == '--onefile':
             if v:
                 cmd.append(k)
-                window['--onefile-tempdir-spec'].update(disabled=False)
-                window['is_compress'].update(False, disabled=True)
-                window['need_start_file'].update(False, disabled=True)
                 if values['--onefile-tempdir-spec']:
                     p = values["--onefile-tempdir-spec"]
                     cmd.append(f'--onefile-tempdir-spec={p}')
-            else:
-                window['--onefile-tempdir-spec'].update(disabled=True)
-                window['is_compress'].update(disabled=False)
-                window['need_start_file'].update(disabled=False)
+            continue
+        elif k in non_cmd_events:
+            continue
         if v:
             if k.startswith("--"):
-                if k in {'--onefile-tempdir-spec', '--onefile'}:
-                    continue
-                elif k in {"--include-package", "--include-module"}:
+                if k in {"--include-package", "--include-module"}:
                     for _value in v.split():
                         cmd.append(f"{k}={_value}")
                 elif k == "--windows-icon":
@@ -390,11 +396,12 @@ def start_build(window):
             raise ValueError("Bad return code: %s" % code)
         print_sep("Build Success")
         app_name = file_path.stem
-        if values_cache["need_start_file"]:
+        if values_cache[
+                "need_start_file"] and not window['need_start_file'].Disabled:
             with open(output_path / f'{app_name}.bat', 'w',
                       encoding='utf-8') as f:
                 f.write(f'@echo off\ncd {app_name}.dist\nstart /B {app_name}')
-        if values_cache["is_compress"]:
+        if values_cache["is_compress"] and not window['is_compress'].Disabled:
             print_sep("Compress Start")
             src_dir = output_path / f"{file_path.stem}.dist"
             if src_dir.is_dir():
@@ -489,6 +496,16 @@ def main():
                 tooltip="Add app.bat for shortcut",
                 enable_events=True,
             ) if IS_WIN32 else [],
+            sg.Button(
+                "dump_config",
+                key="dump_config",
+                enable_events=True,
+            ),
+            sg.Button(
+                "load_config",
+                key="load_config",
+                enable_events=True,
+            ),
         ],
         [sg.Output(
             key="output",
@@ -506,41 +523,77 @@ def main():
         finalize=True,
     )
 
-    # window.maximize()
-
-    def view_folder(event, values):
+    def view_folder(window, event, values):
         if output_path.is_dir():
             subprocess.run(["explorer", output_path.absolute()])
         else:
             sg.popup_error(f"{output_path} is not a folder.")
 
-    def rm_cache_dir(event, values):
+    def rm_cache_dir(window, event, values):
         if output_path.is_dir():
             shutil.rmtree(output_path)
 
-    def kill_proc(event, values):
+    def kill_proc(window, event, values):
         global STOP_PROC
         if proc:
             STOP_PROC = True
             proc.kill()
             proc.wait()
 
+    def dump_config(window, event, values):
+        _path = sg.popup_get_file(
+            'Save config.json',
+            default_path=(Path.cwd() / 'config.json').absolute().as_posix())
+        if not _path:
+            return
+        path = Path(_path)
+        try:
+            text = json.dumps(values,
+                              ensure_ascii=False,
+                              sort_keys=True,
+                              indent=2)
+            path.write_text(text)
+        except Exception:
+            sg.popup_error(traceback.format_exc())
+
+    def load_config(window, event, values):
+        _path = sg.popup_get_file(
+            'Load config.json',
+            default_path=(Path.cwd() / 'config.json').absolute().as_posix())
+        if not _path:
+            return
+        path = Path(_path)
+        try:
+            values_cache.clear()
+            values_cache.update(json.loads(path.read_text()))
+            for k, v in values_cache.items():
+                # print(type(window[k]), k)
+                if isinstance(window[k], sg.Button):
+                    continue
+                update_disabled(window, k, v)
+                window[k].update(v)
+        except Exception:
+            sg.popup_error(traceback.format_exc())
+
     actions = {
         "View": view_folder,
         "Remove": rm_cache_dir,
         "Cancel": kill_proc,
+        "dump_config": dump_config,
+        "load_config": load_config,
     }
     error = None
+    window['output'].update(version_info)
     while True:
         try:
             event, values = window.read()
             if values:
                 values_cache.update(values)
+            print(event, values, flush=True, file=old_stderr)
             callback = actions.get(event)
             if callback:
-                callback(event, values)
+                callback(window, event, values)
                 continue
-            # print(event, values, flush=True, file=old_stderr)
             if event == sg.WIN_CLOSED or event == "Quit":
                 if proc:
                     proc.kill()
