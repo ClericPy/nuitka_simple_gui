@@ -1,6 +1,7 @@
 import itertools
 import os
 import platform
+import re
 import shutil
 import subprocess
 import sys
@@ -11,7 +12,7 @@ from pathlib import Path
 
 import PySimpleGUI as sg
 
-__version__ = "2023.07.18"
+__version__ = "2023.07.27"
 old_stderr = sys.stderr
 _sys = platform.system()
 IS_WIN32 = _sys == "Windows"
@@ -66,25 +67,42 @@ def ensure_python_path():
 
     def check(python):
         try:
-            output = subprocess.check_output([python, "-V"], timeout=2)
-        except (TimeoutError, FileNotFoundError):
             output = b""
-        return output.startswith(b"Python 3.")
+            with subprocess.Popen([python, "-m", "nuitka", "--version"],
+                                  stdout=subprocess.PIPE,
+                                  stdin=subprocess.PIPE,
+                                  stderr=subprocess.STDOUT) as proc:
+                max_lines = 9
+                for index, line in enumerate(proc.stdout, 1):
+                    output += line
+                    if index >= max_lines:
+                        break
+        except (subprocess.TimeoutExpired, FileNotFoundError, Exception):
+            output = b""
+        text = output.decode(sys.getdefaultencoding(), "replace")
+        text = re.sub(r'[\r\n]+', '\n', text)
+        if 'Nuitka will use gcc' in text:
+            choose = sg.popup(
+                text +
+                f"\nYou need to install gcc before press OK:\n{python} -m nuitka --version",
+                title="Error")
+            print(choose, flush=True)
+            return choose
+        return bool(re.match(r'^[.0-9]+[\r\n]+', text))
 
     global python_exe_path
-    default_python = None
     while 1:
-        if check(python_exe_path):
+        ok = check(python_exe_path)
+        if ok is True:
             return
-        if default_python is None:
-            if check("python"):
-                default_python = "python"
-            else:
-                default_python = ""
+        elif ok == 'OK':
+            continue
+        elif ok is None:
+            quit()
         python_exe_path = sg.popup_get_file(
             "Choose a correct Python executable: python / python3 / {Path of Python}",
             "Wrong Python verson",
-            default_path=default_python,
+            default_path="python",
         )
         if not python_exe_path:
             quit()
