@@ -7,14 +7,13 @@ import shutil
 import subprocess
 import sys
 import threading
-import time
 import traceback
 import zipfile
 from pathlib import Path
 
 import PySimpleGUI as sg
 
-__version__ = "2023.07.27"
+__version__ = "2023.08.05"
 old_stderr = sys.stderr
 _sys = platform.system()
 IS_WIN32 = _sys == "Windows"
