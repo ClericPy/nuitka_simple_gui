@@ -1,12 +1,13 @@
 import itertools
+import json
 import os
 import platform
 import re
 import shutil
 import subprocess
-import json
 import sys
 import threading
+import time
 import traceback
 import zipfile
 from pathlib import Path
@@ -55,7 +56,6 @@ pip_cmd: list = []
 file_path: Path = Path("app")
 output_path = Path("./nuitka_output")
 proc = None
-version_info = ''
 values_cache: dict = {}
 python_exe_path = Path(sys.executable).as_posix()
 if python_exe_path.endswith("pythonw"):
@@ -64,17 +64,23 @@ elif python_exe_path.endswith("pythonw.exe"):
     python_exe_path = python_exe_path[:-5] + ".exe"
 STOP_PROC = False
 non_cmd_events = {'dump_config', 'load_config', '--onefile-tempdir-spec'}
+window: sg.Window = None
 
 
 def ensure_python_path():
 
-    def check(python):
+    global python_exe_path
+    while True:
+        title = ''
+        msg = ''
         try:
             output = b""
-            with subprocess.Popen([python, "-m", "nuitka", "--version"],
-                                  stdout=subprocess.PIPE,
-                                  stdin=subprocess.PIPE,
-                                  stderr=subprocess.STDOUT) as proc:
+            with subprocess.Popen(
+                [python_exe_path, "-m", "nuitka", "--version"],
+                    stdout=subprocess.PIPE,
+                    stdin=subprocess.PIPE,
+                    stderr=subprocess.STDOUT) as proc:
+                yield 'popen'
                 for line in proc.stdout:
                     output += line
                     if b'Is it OK to download and put it in' in line:
@@ -84,32 +90,29 @@ def ensure_python_path():
         text = output.decode(sys.getdefaultencoding(), "replace")
         text = re.sub(r'[\r\n]+', '\n', text)
         if text:
-            global version_info
-            version_info = text
-            if 'Is it OK to download and put it in' in text:
-                choose = sg.popup(
-                    text +
-                    f"\nYou need to install gcc before press OK:\n{python} -m nuitka --version",
-                    title="Error")
-                return choose
-        return bool(re.match(r'^[.0-9]+[\r\n]+', text))
-
-    global python_exe_path
-    while 1:
-        ok = check(python_exe_path)
-        if ok is True:
-            return
-        elif ok == 'OK':
-            continue
-        elif ok is None:
-            quit()
-        python_exe_path = sg.popup_get_file(
-            "Choose a correct Python executable: python / python3 / {Path of Python}",
-            "Wrong Python verson",
-            default_path="python",
+            window["output"].update(f'Nuitka version: {text}')
+            gcc_ready = 'Is it OK to download and put it in' not in text
+            if not gcc_ready:
+                title = 'Missing gcc'
+                msg = text + f"\nYou need to install gcc before press OK(or close to quit):\n\n{python_exe_path} -m nuitka --version\n"
+        if not title:
+            nuitka_ready = bool(re.match(r'^[.0-9]+[\r\n]+', text))
+            if nuitka_ready:
+                return True
+            else:
+                title = 'Missing nuitka'
+                msg = text + f"\nYou need to install nuitka before press OK(or close to quit):\n\n{python_exe_path} -m pip install nuitka\n"
+        _python_exe_path = sg.popup_get_file(
+            msg + '\nor choose a new Python Interpreter',
+            title,
+            default_path=python_exe_path,
         )
-        if not python_exe_path:
+        if _python_exe_path is None:
             quit()
+        path = Path(_python_exe_path)
+        if not path.is_file():
+            continue
+        python_exe_path = path.as_posix()
 
 
 def slice_by_size(seq, size):
@@ -246,14 +249,14 @@ def init_checkbox():
     ]
 
 
-def update_disabled(window, k, v):
+def update_disabled(k, v):
     if k == '--onefile':
         window['--onefile-tempdir-spec'].update(disabled=not v)
         window['is_compress'].update(disabled=v)
         window['need_start_file'].update(disabled=v)
 
 
-def update_cmd(window, values):
+def update_cmd(values):
     # print(values)
     global file_path, output_path
     cmd = [
@@ -263,7 +266,7 @@ def update_cmd(window, values):
     ]
     for k, v in values.items():
         k = str(k)
-        update_disabled(window, k, v)
+        update_disabled(k, v)
         if k == '--onefile':
             if v:
                 cmd.append(k)
@@ -357,7 +360,7 @@ def print_sep(text: str):
     )
 
 
-def start_build(window):
+def start_build():
     global proc, STOP_PROC
     window["Start"].update(disabled=True)
     window["Cancel"].update(disabled=False)
@@ -447,7 +450,8 @@ def beep():
 
 
 def main():
-    ensure_python_path()
+    ensure_path_gen = ensure_python_path()
+    next(ensure_path_gen)
     sg.theme("default1")
     layout = [
         input_path("Entry Point:", "file_path"),
@@ -512,7 +516,7 @@ def main():
             size=(80, 12),
         )],
     ]
-
+    global window
     window = sg.Window(
         "Nuitka Toolkit - v%s on %s" %
         (__version__, sys.version.split(maxsplit=1)),
@@ -523,24 +527,24 @@ def main():
         finalize=True,
     )
 
-    def view_folder(window, event, values):
+    def view_folder(event, values):
         if output_path.is_dir():
             subprocess.run(["explorer", output_path.absolute()])
         else:
             sg.popup_error(f"{output_path} is not a folder.")
 
-    def rm_cache_dir(window, event, values):
+    def rm_cache_dir(event, values):
         if output_path.is_dir():
             shutil.rmtree(output_path)
 
-    def kill_proc(window, event, values):
+    def kill_proc(event, values):
         global STOP_PROC
         if proc:
             STOP_PROC = True
             proc.kill()
             proc.wait()
 
-    def dump_config(window, event, values):
+    def dump_config(event, values):
         _path = sg.popup_get_file(
             'Save config.json',
             default_path=(Path.cwd() / 'config.json').absolute().as_posix())
@@ -556,7 +560,7 @@ def main():
         except Exception:
             sg.popup_error(traceback.format_exc())
 
-    def load_config(window, event, values):
+    def load_config(event, values):
         _path = sg.popup_get_file(
             'Load config.json',
             default_path=(Path.cwd() / 'config.json').absolute().as_posix())
@@ -570,10 +574,13 @@ def main():
                 # print(type(window[k]), k)
                 if isinstance(window[k], sg.Button):
                     continue
-                update_disabled(window, k, v)
+                update_disabled(k, v)
                 window[k].update(v)
         except Exception:
             sg.popup_error(traceback.format_exc())
+
+    for _ in ensure_path_gen:
+        pass
 
     actions = {
         "View": view_folder,
@@ -583,16 +590,15 @@ def main():
         "load_config": load_config,
     }
     error = None
-    window['output'].update(version_info)
     while True:
         try:
             event, values = window.read()
             if values:
                 values_cache.update(values)
-            print(event, values, flush=True, file=old_stderr)
+            # print(event, values, flush=True, file=old_stderr)
             callback = actions.get(event)
             if callback:
-                callback(window, event, values)
+                callback(event, values)
                 continue
             if event == sg.WIN_CLOSED or event == "Quit":
                 if proc:
@@ -601,11 +607,9 @@ def main():
                 break
             # window['output'].update(values)
             update_plugin_list(event, values)
-            update_cmd(window, values)
+            update_cmd(values)
             if event == "Start" and not proc:
-                threading.Thread(target=start_build,
-                                 args=(window,),
-                                 daemon=True).start()
+                threading.Thread(target=start_build, daemon=True).start()
         except BaseException:
             error = traceback.format_exc()
             break
