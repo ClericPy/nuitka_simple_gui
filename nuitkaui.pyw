@@ -13,7 +13,7 @@ from pathlib import Path
 
 import PySimpleGUI as sg
 
-__version__ = "2023.08.05"
+__version__ = "2023.08.06"
 old_stderr = sys.stderr
 _sys = platform.system()
 IS_WIN32 = _sys == "Windows"
@@ -48,22 +48,36 @@ _plugins_list = [
     "trio",
     "pyzmq",
 ]
-plugins = {i: False for i in _plugins_list}
+plugins = {i: False for i in sorted(_plugins_list)}
 cmd_list: list = []
 pip_args: list = []
 pip_cmd: list = []
 file_path: Path = Path("app")
 output_path = Path("./nuitka_output")
-proc = None
+STOPPING_PROC = False
+RUNNING_PROC: subprocess.Popen = None
 values_cache: dict = {}
 python_exe_path = Path(sys.executable).as_posix()
 if python_exe_path.endswith("pythonw"):
     python_exe_path = python_exe_path[:-1]
 elif python_exe_path.endswith("pythonw.exe"):
     python_exe_path = python_exe_path[:-5] + ".exe"
-STOP_PROC = False
 non_cmd_events = {'dump_config', 'load_config', '--onefile-tempdir-spec'}
 window: sg.Window = None
+
+
+def get_ccache_info():
+    url = 'https://github.com/ccache/ccache/releases'
+    with subprocess.Popen(['ccache', '--version'],
+                          shell=True,
+                          stdout=subprocess.PIPE,
+                          stderr=subprocess.STDOUT) as proc:
+        text = proc.stdout.readline().decode(sys.getdefaultencoding(),
+                                             'replace').strip()
+        if 'ccache version' in text:
+            return text
+        else:
+            return f'ccache not found. Download from:\n{url}'
 
 
 def ensure_python_path():
@@ -79,7 +93,7 @@ def ensure_python_path():
                     stdout=subprocess.PIPE,
                     stdin=subprocess.PIPE,
                     stderr=subprocess.STDOUT) as proc:
-                yield 'popen'
+                yield 'start'
                 for line in proc.stdout:
                     output += line
                     if b'Is it OK to download and put it in' in line:
@@ -89,7 +103,8 @@ def ensure_python_path():
         text = output.decode(sys.getdefaultencoding(), "replace")
         text = re.sub(r'[\r\n]+', '\n', text)
         if text:
-            window["output"].update(f'Nuitka version: {text}')
+            window["output"].update(
+                f'Nuitka version: {text}\n{get_ccache_info()}')
             gcc_ready = 'Is it OK to download and put it in' not in text
             if not gcc_ready:
                 title = 'Missing gcc'
@@ -109,9 +124,10 @@ def ensure_python_path():
         if _python_exe_path is None:
             quit()
         path = Path(_python_exe_path)
-        if not path.is_file():
-            continue
-        python_exe_path = path.as_posix()
+        if path.is_file():
+            python_exe_path = path.as_posix()
+        else:
+            python_exe_path = _python_exe_path
 
 
 def slice_by_size(seq, size):
@@ -122,10 +138,13 @@ def slice_by_size(seq, size):
             yield it
 
 
-def input_path(text, key, action=sg.FileBrowse):
+def input_path(text, key, action=sg.FileBrowse, disable_input=False):
     return [
-        sg.Text(text),
-        sg.InputText(key=key, enable_events=True),
+        sg.Text(
+            text,
+            size=(10, None),
+        ),
+        sg.InputText(key=key, enable_events=True, disabled=disable_input),
         action(target=(sg.ThisRow, 1), enable_events=True),
     ]
 
@@ -146,31 +165,22 @@ def init_checkbox():
                          key="--module",
                          enable_events=True),
                 sg.Checkbox(
-                    "--onefile",
-                    default=False,
-                    key="--onefile",
+                    "--windows-disable-console",
+                    key="--windows-disable-console",
                     enable_events=True,
-                ),
-                sg.Input(
-                    "./cache",
-                    key="--onefile-tempdir-spec",
-                    tooltip=r"""--onefile-tempdir-spec
-%TEMP%	User temporary file directory	C:\Users\...\AppData\Locals\Temp
-%PID%	Process ID	2772
-%TIME%	Time in seconds since the epoch.	1299852985
-%PROGRAM%	Full program run-time filename of executable.	C:\SomeWhere\YourOnefile.exe
-%PROGRAM_BASE%	No-suffix of run-time filename of executable.	C:\SomeWhere\YourOnefile
-%CACHE_DIR%	Cache directory for the user.	C:\Users\SomeBody\AppData\Local
-%COMPANY%	Value given as --company-name	YourCompanyName
-%PRODUCT%	Value given as --product-name	YourProductName
-%VERSION%	Combination of --file-version & --product-version	3.0.0.0-1.0.0.0
-%HOME%	Home directory for the user.	/home/somebody
-%NONE%	When provided for file outputs, None is used	see notice below
-%NULL%	When provided for file outputs, os.devnull is used	see notice below
-""",
+                ) if IS_WIN32 else [],
+                sg.FileBrowse(
+                    "--windows-icon",
+                    key="--windows-icon",
+                    file_types=(("icon", "*.ico *.exe"),),
+                    target=(sg.ThisRow, 1),
                     enable_events=True,
-                    disabled=True,
-                ),
+                ) if IS_WIN32 else [],
+                sg.Checkbox(
+                    "--macos-disable-console",
+                    key="--macos-disable-console",
+                    enable_events=True,
+                ) if IS_MAC else [],
             ],
             sg.Checkbox(
                 "--nofollow-imports",
@@ -188,29 +198,6 @@ def init_checkbox():
                         key="--no-pyi-file",
                         default=True,
                         enable_events=True),
-        ],
-        [
-            [
-                sg.Checkbox(
-                    "--windows-disable-console",
-                    key="--windows-disable-console",
-                    enable_events=True,
-                ),
-                sg.FileBrowse(
-                    "--windows-icon",
-                    key="--windows-icon",
-                    file_types=(("icon", "*.ico *.exe"),),
-                    target=(sg.ThisRow, 1),
-                    enable_events=True,
-                ),
-            ] if IS_WIN32 else [],
-            [
-                sg.Checkbox(
-                    "--macos-disable-console",
-                    key="--macos-disable-console",
-                    enable_events=True,
-                )
-            ] if IS_MAC else [],
         ],
         [
             sg.Radio(
@@ -255,7 +242,7 @@ def update_disabled(k, v):
         window['need_start_file'].update(disabled=v)
 
 
-def update_cmd(values):
+def update_cmd(event, values):
     # print(values)
     global file_path, output_path
     cmd = [
@@ -289,27 +276,30 @@ def update_cmd(values):
                 elif k == "--output-dir":
                     output_path = Path(v)
                     cmd.append(f"--output-dir={output_path.as_posix()}")
+                elif k == "--output-filename":
+                    _name = v.replace('"', '_').replace(' ',
+                                                        '_').replace("'", '_')
+                    cmd.append(f"--output-filename={_name}")
+                    if event == k:
+                        window['--onefile-tempdir-spec'].update(
+                            f"./{_name}_cache")
                 elif k == "--other-args":
                     cmd.append(v)
                 else:
                     cmd.append(k)
             elif k == 'file_path':
                 file_path = Path(v)
+                if event == k:
+                    window['--output-filename'].update(file_path.stem)
+                    window['--onefile-tempdir-spec'].update(
+                        f"./{file_path.stem}_cache")
             elif k == "pip_args":
-                v_list = v.split(os.path.pathsep)
-                args = []
-                has_file = False
-                for p in v_list:
-                    path = Path(p)
-                    if path.is_file():
-                        args.extend(path.read_text().strip().splitlines())
-                        has_file = True
-                    else:
-                        args.extend(p.split())
+                if event == k and Path(v).is_file():
+                    v = f'-r {v}'
+                    window['pip_args'].update(v)
+                args = v.split()
                 pip_args.clear()
-                pip_args.extend(set(args))
-                if has_file:
-                    window["pip_args"].update(" ".join(pip_args))
+                pip_args.extend(args)
                 pip_cmd.clear()
                 pip_cmd.extend([
                     python_exe_path,
@@ -360,7 +350,7 @@ def print_sep(text: str):
 
 
 def start_build():
-    global proc, STOP_PROC
+    global RUNNING_PROC, STOPPING_PROC
     window["Start"].update(disabled=True)
     window["Cancel"].update(disabled=False)
     try:
@@ -368,32 +358,34 @@ def start_build():
         if pip_args:
             print_sep('"pip install" Start')
             print(pip_args, flush=True)
-            proc = subprocess.Popen(
+            RUNNING_PROC = subprocess.Popen(
                 pip_cmd,
-                shell=True,
+                # shell=True,
                 stdout=subprocess.PIPE,
                 stderr=subprocess.STDOUT,
             )
-            for line in proc.stdout:
+            for line in RUNNING_PROC.stdout:
                 print(line.decode("utf-8", "replace"), end="", flush=True)
-                if STOP_PROC:
-                    proc.kill()
+                if STOPPING_PROC:
+                    RUNNING_PROC.kill()
                     break
-            code = proc.wait()
+            code = RUNNING_PROC.wait()
             if code != 0:
                 raise ValueError("Bad return code: %s" % code)
             print_sep('"pip install" Finished')
         print_sep("Build Start")
-        proc = subprocess.Popen(cmd_list,
-                                shell=True,
-                                stdout=subprocess.PIPE,
-                                stderr=subprocess.STDOUT)
-        for line in proc.stdout:
+        RUNNING_PROC = subprocess.Popen(
+            cmd_list,
+            shell=True,
+            # creationflags=subprocess.CREATE_NO_WINDOW,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT)
+        for line in RUNNING_PROC.stdout:
             print(line.decode("utf-8", "replace"), end="", flush=True)
-            if STOP_PROC:
-                proc.kill()
+            if STOPPING_PROC:
+                RUNNING_PROC.kill()
                 break
-        code = proc.wait()
+        code = RUNNING_PROC.wait()
         if code != 0:
             raise ValueError("Bad return code: %s" % code)
         print_sep("Build Success")
@@ -433,10 +425,10 @@ def start_build():
         shutil.rmtree((output_path / f"{file_path.stem}.pips").as_posix(),
                       ignore_errors=True)
 
-    proc = None
+    RUNNING_PROC = None
     window["Start"].update(disabled=False)
     window["Cancel"].update(disabled=True)
-    STOP_PROC = False
+    STOPPING_PROC = False
 
 
 def beep():
@@ -453,10 +445,50 @@ def main():
     next(ensure_path_gen)
     sg.theme("default1")
     layout = [
-        input_path("Entry Point:", "file_path"),
+        input_path("Entry Point:", "file_path", disable_input=True),
+        [
+            sg.Text(
+                "Output Name:",
+                size=(10, None),
+            ),
+            sg.InputText(file_path.stem,
+                         key="--output-filename",
+                         size=(10, None),
+                         enable_events=True),
+            sg.Checkbox(
+                "--onefile",
+                default=False,
+                key="--onefile",
+                enable_events=True,
+            ),
+            sg.Input(
+                f"./{file_path.stem}_cache",
+                key="--onefile-tempdir-spec",
+                size=(30, None),
+                tooltip=r"""--onefile-tempdir-spec
+%TEMP%	User temporary file directory	C:\Users\...\AppData\Locals\Temp
+%PID%	Process ID	2772
+%TIME%	Time in seconds since the epoch.	1299852985
+%PROGRAM%	Full program run-time filename of executable.	C:\SomeWhere\YourOnefile.exe
+%PROGRAM_BASE%	No-suffix of run-time filename of executable.	C:\SomeWhere\YourOnefile
+%CACHE_DIR%	Cache directory for the user.	C:\Users\SomeBody\AppData\Local
+%COMPANY%	Value given as --company-name	YourCompanyName
+%PRODUCT%	Value given as --product-name	YourProductName
+%VERSION%	Combination of --file-version & --product-version	3.0.0.0-1.0.0.0
+%HOME%	Home directory for the user.	/home/somebody
+%NONE%	When provided for file outputs, None is used	see notice below
+%NULL%	When provided for file outputs, os.devnull is used	see notice below
+""",
+                enable_events=True,
+                disabled=True,
+            ),
+        ],
         init_checkbox(),
         [
-            sg.Text("--include-package:".ljust(20)),
+            sg.Text(
+                "--include-package:".ljust(20),
+                size=(15, None),
+            ),
             sg.Input(
                 "",
                 key="--include-package",
@@ -465,7 +497,10 @@ def main():
             ),
         ],
         [
-            sg.Text("--include-module:".ljust(20)),
+            sg.Text(
+                "--include-module:".ljust(20),
+                size=(15, None),
+            ),
             sg.Input(
                 "",
                 key="--include-module",
@@ -474,12 +509,18 @@ def main():
             ),
         ],
         [
-            sg.Text("Custom Args:".ljust(20)),
+            sg.Text(
+                "Custom Args:".ljust(20),
+                size=(15, None),
+            ),
             sg.Input("", key="--other-args", enable_events=True),
         ],
-        input_path("Requirements:".ljust(20), "pip_args", sg.FilesBrowse),
+        input_path("Pip Args:".ljust(20), "pip_args", sg.FilesBrowse),
         [
-            sg.Text("Output Path:"),
+            sg.Text(
+                "Output Path:",
+                size=(10, None),
+            ),
             sg.InputText(output_path.as_posix(),
                          key="--output-dir",
                          enable_events=True),
@@ -537,11 +578,33 @@ def main():
             shutil.rmtree(output_path)
 
     def kill_proc(event, values):
-        global STOP_PROC
-        if proc:
-            STOP_PROC = True
-            proc.kill()
-            proc.wait()
+
+        def _kill_windows_proc(pid):
+            for _ in range(4):
+                with subprocess.Popen(
+                        f'wmic process where "parentprocessid={pid}" get processid',
+                        shell=True,
+                        stdout=subprocess.PIPE,
+                        stderr=subprocess.STDOUT,
+                ) as p:
+                    for _pid in re.findall(b'[0-9]+', p.stdout.read()):
+                        _kill_windows_proc(int(_pid))
+            try:
+                os.kill(pid, 9)
+            except OSError:
+                pass
+
+        global STOPPING_PROC
+        if RUNNING_PROC:
+            STOPPING_PROC = True
+            if IS_WIN32:
+                return _kill_windows_proc(RUNNING_PROC.pid)
+            for f in [RUNNING_PROC.terminate, RUNNING_PROC.kill]:
+                f()
+                try:
+                    RUNNING_PROC.wait(timeout=1)
+                except subprocess.TimeoutExpired:
+                    continue
 
     def dump_config(event, values):
         _path = sg.popup_get_file(
@@ -600,14 +663,14 @@ def main():
                 callback(event, values)
                 continue
             if event == sg.WIN_CLOSED or event == "Quit":
-                if proc:
-                    proc.kill()
-                    proc.wait()
+                if RUNNING_PROC:
+                    RUNNING_PROC.kill()
+                    RUNNING_PROC.wait()
                 break
             # window['output'].update(values)
             update_plugin_list(event, values)
-            update_cmd(values)
-            if event == "Start" and not proc:
+            update_cmd(event, values)
+            if event == "Start" and not RUNNING_PROC:
                 threading.Thread(target=start_build, daemon=True).start()
         except BaseException:
             error = traceback.format_exc()
