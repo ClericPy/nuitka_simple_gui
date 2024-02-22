@@ -13,7 +13,7 @@ from pathlib import Path
 
 import PySimpleGUI as sg
 
-__version__ = "2023.08.06"
+__version__ = "2024.02.22"
 old_stderr = sys.stderr
 _sys = platform.system()
 IS_WIN32 = _sys == "Windows"
