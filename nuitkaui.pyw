@@ -11,7 +11,7 @@ import traceback
 import zipfile
 from pathlib import Path
 
-import PySimpleGUI as sg
+import FreeSimpleGUI as sg
 
 __version__ = "2024.02.22"
 old_stderr = sys.stderr
