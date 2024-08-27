@@ -10,7 +10,7 @@ readme = "README.md"
 license = {file = "LICENSE"}
 classifiers = ["License :: OSI Approved :: MIT License"]
 dynamic = ["version"]
-dependencies = ["FreeSimpleGUI"]
+dependencies = ["FreeSimpleGUI", "nuitka"]
 scripts = { nuitka_simple_gui = "nuitka_simple_gui:main" }
 
 [project.urls]
