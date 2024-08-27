@@ -1,5 +1,9 @@
 # nuitka_simple_gui
 
+> `pip install nuitka_simple_gui`
+> 
+> `python -m nuitka_simple_gui` or `nuitka_simple_gui`
+
 A simple GUI app of nuitka
 
 1. Features
@@ -11,11 +15,7 @@ A simple GUI app of nuitka
    6. add `onefile` mode(`2023.07.18`)
    7. add `beep` after finished on windows(`2023.07.18`)
    7. add `dump-config` `load-config`(`2023.07.27`)
-2. Why not upload to pypi.org?
-   1. Not a good work yet
-      1. Dirty code structure
-      2. Just for simple use, and it does work
-3. User manual
+2. User manual
    1. ENSURE you have installed gcc/MinGW64
       1. use the cmdline args from GUI, and type them to terminal manual at the first using.
    2. How to build
@@ -33,9 +33,9 @@ A simple GUI app of nuitka
    3. How to use
       1. Run the app.bat for short, but it will flash a console
       2. Or you can run the app.exe in the folder app.dist
-4. Documentation?
+3. Documentation?
    1. GUI apps do not need docs.
-5. What's More?
+4. What's More?
    1. I think about it
 
 
