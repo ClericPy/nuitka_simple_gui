@@ -8,12 +8,14 @@ import subprocess
 import sys
 import threading
 import traceback
+import typing
 import zipfile
 from pathlib import Path
 
 import FreeSimpleGUI as sg
 
-__version__ = "2024.08.27"
+__version__ = "2024.08.28"
+sg.theme("default1")
 old_stderr = sys.stderr
 _sys = platform.system()
 IS_WIN32 = _sys == "Windows"
@@ -55,7 +57,7 @@ pip_cmd: list = []
 file_path: Path = Path("app")
 output_path = Path("./nuitka_output")
 STOPPING_PROC = False
-RUNNING_PROC: subprocess.Popen = None
+RUNNING_PROC: typing.Optional[subprocess.Popen] = None
 values_cache: dict = {}
 python_exe_path = Path(sys.executable).as_posix()
 if python_exe_path.endswith("pythonw"):
@@ -67,76 +69,69 @@ non_cmd_prefix = "____"
 window: sg.Window = None
 
 
-def get_ccache_info():
-    url = "https://github.com/ccache/ccache/releases"
-    with subprocess.Popen(
-        ["ccache", "--version"],
-        shell=True,
-        stdout=subprocess.PIPE,
-        stderr=subprocess.STDOUT,
-    ) as proc:
-        text = (
-            proc.stdout.readline().decode(sys.getdefaultencoding(), "replace").strip()
-        )
-        if "ccache version" in text:
-            return text
-        else:
-            return f"ccache not found. Download from:\n{url}"
-
-
 def ensure_python_path():
     global python_exe_path
-    while True:
-        title = ""
-        msg = ""
-        try:
-            output = b""
-            with subprocess.Popen(
-                [python_exe_path, "-m", "nuitka", "--version"],
-                stdout=subprocess.PIPE,
-                stdin=subprocess.PIPE,
-                stderr=subprocess.STDOUT,
-            ) as proc:
-                yield "start"
-                for line in proc.stdout:
-                    output += line
-                    if b"Is it OK to download and put it in" in line:
-                        break
-        except (subprocess.TimeoutExpired, FileNotFoundError, Exception):
-            output = b""
-        text = output.decode(sys.getdefaultencoding(), "replace")
-        text = re.sub(r"[\r\n]+", "\n", text)
-        if text:
-            window["output"].update(f"Nuitka version: {text}\n{get_ccache_info()}")
-            gcc_ready = "Is it OK to download and put it in" not in text
-            if not gcc_ready:
-                title = "Missing gcc"
-                msg = (
-                    text
-                    + f"\nYou need to install gcc before press OK(or close to quit):\n\n{python_exe_path} -m nuitka --version\n"
-                )
-        if not title:
-            nuitka_ready = bool(re.match(r"^[.0-9]+[\r\n]+", text))
-            if nuitka_ready:
-                return True
-            else:
-                title = "Missing nuitka"
-                msg = (
-                    text
-                    + f"\nYou need to install nuitka before press OK(or close to quit):\n\n{python_exe_path} -m pip install nuitka\n"
-                )
-        _python_exe_path = sg.popup_get_file(
-            msg + "\nor choose a new Python Interpreter",
-            title,
-            default_path=python_exe_path,
-        )
-        if _python_exe_path is None:
-            quit()
-        path = Path(_python_exe_path)
-        if path.is_file():
-            python_exe_path = path.as_posix()
+    try:
+        import nuitka
+
+        del nuitka
+    except ImportError:
+        sg.PopupOK("Please pip install nuitka before running", "Nuitka not found!")
+        quit()
+    title = ""
+    msg = ""
+    try:
+        output = b""
+        with subprocess.Popen(
+            [python_exe_path, "-m", "nuitka", "--version"],
+            stdout=subprocess.PIPE,
+            stdin=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
+        ) as proc:
+            for line in proc.stdout:
+                output += line
+                if b"Is it OK to download and put it in" in line:
+                    break
+            proc.terminate()
+    except (subprocess.TimeoutExpired, FileNotFoundError, Exception):
+        output = b""
+    text = output.decode(sys.getdefaultencoding(), "replace")
+    text = re.sub(r"[\r\n]+", "\n", text)
+    if text:
+        gcc_ready = "Is it OK to download and put it in" not in text
+        if gcc_ready:
+            return f"Nuitka version: {text}"
         else:
-            python_exe_path = _python_exe_path
+            title = "Missing gcc"
+            msg = (
+                text
+                + f"\nTry download gcc?(or close to quit):\n\n{python_exe_path} -m nuitka --version --assume-yes-for-downloads\n"
+            )
+            print(msg, flush=True)
+            if sg.PopupYesNo(msg, title=title).lower() == "yes":
+                try:
+                    with subprocess.Popen(
+                        [
+                            python_exe_path,
+                            "-m",
+                            "nuitka",
+                            "--version",
+                            "--assume-yes-for-downloads",
+                        ],
+                    ) as proc:
+                        if proc.wait() != 0:
+                            print("download failed")
+                            quit(1)
+                except (
+                    subprocess.TimeoutExpired,
+                    FileNotFoundError,
+                    Exception,
+                ) as e:
+                    sg.PopupOK(f"Failed to download gcc {e!r}")
+            else:
+                quit()
+    else:
+        quit()
 
 
 def slice_by_size(seq, size):
@@ -461,9 +456,7 @@ def beep():
 
 
 def main():
-    ensure_path_gen = ensure_python_path()
-    next(ensure_path_gen)
-    sg.theme("default1")
+    ensure_python_path()
     layout = [
         input_path("Entry Point:", "file_path", disable_input=True),
         [
@@ -663,9 +656,6 @@ def main():
                 window[k].update(v)
         except Exception:
             sg.popup_error(traceback.format_exc())
-
-    for _ in ensure_path_gen:
-        pass
 
     actions = {
         "View": view_folder,
