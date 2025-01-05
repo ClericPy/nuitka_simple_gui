@@ -13,44 +13,22 @@ import zipfile
 from pathlib import Path
 
 import FreeSimpleGUI as sg
+from nuitka.plugins.Plugins import loadPlugins, plugin_name2plugin_classes
 
-__version__ = "2024.08.28"
+__version__ = "2025.01.05"
 sg.theme("default1")
 old_stderr = sys.stderr
 _sys = platform.system()
 IS_WIN32 = _sys == "Windows"
 IS_MAC = _sys in {"OSX", "Darwin"}
 IS_LINUX = _sys == "Linux"
-_plugins_list = [
-    "anti-bloat",
-    "pylint-warnings",
-    "data-files",
-    "dill-compat",
-    "enum-compat",
-    "eventlet",
-    "gevent",
-    "gi",
-    "glfw",
-    "implicit-imports",
-    "kivy",
-    "matplotlib",
-    "multiprocessing",
-    "numpy",
-    "pbr-compat",
-    "pkg-resources",
-    "pmw-freezer",
-    "pyside6",
-    "pyqt5",
-    "pyside2",
-    "pyqt6",
-    "pywebview",
-    "tensorflow",
-    "tk-inter",
-    "torch",
-    "trio",
-    "pyzmq",
-]
-plugins = {i: False for i in sorted(_plugins_list)}
+loadPlugins()
+_plugins_list = {
+    k: getattr(v[0], "plugin_desc", "")
+    for k, v in plugin_name2plugin_classes.items()
+    if not v[0].isDeprecated()
+}
+plugins_checkbox = {i: False for i in sorted(_plugins_list)}
 cmd_list: list = []
 pip_args: list = []
 pip_cmd: list = []
@@ -243,7 +221,7 @@ def init_checkbox():
                         sg.Checkbox(i, key="_plugin_%s" % i, enable_events=True)
                         for i in ii
                     ]
-                    for ii in slice_by_size(plugins, 6)
+                    for ii in slice_by_size(plugins_checkbox, 6)
                 ],
             )
         ],
@@ -309,6 +287,8 @@ def update_cmd(event, values):
                     window["--output-filename"].update(file_path.stem)
                     window["--onefile-tempdir-spec"].update(f"./{file_path.stem}_cache")
             elif k == "pip_args":
+                if not v.strip():
+                    continue
                 if event == k and Path(v).is_file():
                     v = f"-r {v}"
                     window["pip_args"].update(v)
@@ -336,7 +316,7 @@ def update_cmd(event, values):
 
         if find_spec("pywin32_bootstrap") is not None:
             cmd.extend(["--include-module=pywin32_bootstrap"])
-    for k, v in plugins.items():
+    for k, v in plugins_checkbox.items():
         if v:
             cmd.append("--enable-plugin=%s" % k)
     cmd.append(file_path.as_posix())
@@ -355,7 +335,7 @@ def update_plugin_list(e, items):
     for k, v in items.items():
         if str(k).startswith("_plugin_"):
             key = k[8:]
-            plugins[key] = v
+            plugins_checkbox[key] = v
 
 
 def print_sep(text: str):

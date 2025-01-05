@@ -42,3 +42,9 @@ A simple GUI app of nuitka
 ### Screenshot
 
 ![demo.png](https://raw.githubusercontent.com/ClericPy/nuitka_simple_gui/master/demo.png)
+
+### Changelog
+
+- 2025.01.05
+  - Fix failure when pip_args is empty
+  - Change Nuitka plugin list to be dynamically obtained
