@@ -218,7 +218,12 @@ def init_checkbox():
                 "Plugins",
                 [
                     [
-                        sg.Checkbox(i, key="_plugin_%s" % i, enable_events=True)
+                        sg.Checkbox(
+                            i,
+                            key="_plugin_%s" % i,
+                            tooltip=_plugins_list.get(i) or "no description",
+                            enable_events=True,
+                        )
                         for i in ii
                     ]
                     for ii in slice_by_size(plugins_checkbox, 6)
