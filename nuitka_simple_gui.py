@@ -15,7 +15,7 @@ from pathlib import Path
 import FreeSimpleGUI as sg
 from nuitka.plugins.Plugins import loadPlugins, plugin_name2plugin_classes
 
-__version__ = "2025.01.05"
+__version__ = "2025.1.6"
 sg.theme("default1")
 old_stderr = sys.stderr
 _sys = platform.system()
@@ -49,13 +49,6 @@ window: sg.Window = None
 
 def ensure_python_path():
     global python_exe_path
-    try:
-        import nuitka
-
-        del nuitka
-    except ImportError:
-        sg.PopupOK("Please pip install nuitka before running", "Nuitka not found!")
-        quit()
     title = ""
     msg = ""
     try:
@@ -86,7 +79,7 @@ def ensure_python_path():
                 + f"\nTry download gcc?(or close to quit):\n\n{python_exe_path} -m nuitka --version --assume-yes-for-downloads\n"
             )
             print(msg, flush=True)
-            if sg.PopupYesNo(msg, title=title).lower() == "yes":
+            if (sg.PopupYesNo(msg, title=title) or "").lower() == "yes":
                 try:
                     with subprocess.Popen(
                         [
@@ -96,16 +89,25 @@ def ensure_python_path():
                             "--version",
                             "--assume-yes-for-downloads",
                         ],
+                        stdout=subprocess.PIPE,
+                        stderr=subprocess.STDOUT,
                     ) as proc:
-                        if proc.wait() != 0:
-                            print("download failed")
-                            quit(1)
+                        ok = True
+                        for line in proc.stdout:
+                            text = line.decode("utf-8", "replace")
+                            if "Failed to download" in text:
+                                ok = False
+                            print(text, end="", flush=True)
+                    if not ok:
+                        raise ValueError(
+                            "Failed to download gcc, view the log and download it manually."
+                        )
                 except (
                     subprocess.TimeoutExpired,
                     FileNotFoundError,
                     Exception,
                 ) as e:
-                    sg.PopupOK(f"Failed to download gcc {e!r}")
+                    sg.PopupOK(f"Failed to download gcc {e}")
             else:
                 quit()
     else:
@@ -441,7 +443,6 @@ def beep():
 
 
 def main():
-    ensure_python_path()
     layout = [
         input_path("Entry Point:", "file_path", disable_input=True),
         [
@@ -650,6 +651,7 @@ def main():
         "load_config": load_config,
     }
     error = None
+    ensure_python_path()
     while True:
         try:
             event, values = window.read()

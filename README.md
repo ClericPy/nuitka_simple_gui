@@ -32,7 +32,7 @@ A simple GUI app of nuitka
 
 - 2025.1.6
   - add tooltip to plugin checkbox
-  - 
+  - mv ensure_python_path log to GUI textarea, for downloading gcc manually
 - 2025.01.05
   - Fix failure when pip_args is empty
   - Change Nuitka plugin list to be dynamically obtained
