@@ -1,4 +1,7 @@
-# nuitka_simple_gui
+# [nuitka_simple_gui](https://github.com/ClericPy/nuitka_simple_gui)
+
+[![PyPI](https://img.shields.io/pypi/v/nuitka_simple_gui?style=plastic)](https://pypi.org/project/nuitka_simple_gui/)![PyPI - Wheel](https://img.shields.io/pypi/wheel/nuitka_simple_gui?style=plastic)
+
 
 > `pip install nuitka_simple_gui`
 > 
