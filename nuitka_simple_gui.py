@@ -14,8 +14,9 @@ from pathlib import Path
 
 import FreeSimpleGUI as sg
 from nuitka.plugins.Plugins import loadPlugins, plugin_name2plugin_classes
+from nuitka.utils.AppDirs import getCacheDir
 
-__version__ = "2025.1.6"
+__version__ = "2025.1.7"
 sg.theme("default1")
 old_stderr = sys.stderr
 _sys = platform.system()
@@ -45,6 +46,7 @@ elif python_exe_path.endswith("pythonw.exe"):
 non_cmd_events = {"dump_config", "load_config", "--onefile-tempdir-spec"}
 non_cmd_prefix = "____"
 window: sg.Window = None
+nuitka_cache_path = Path(getCacheDir("")).absolute()
 
 
 def ensure_python_path():
@@ -109,7 +111,7 @@ def ensure_python_path():
                 ) as e:
                     sg.PopupOK(f"Failed to download gcc {e}")
             else:
-                quit()
+                pass
     else:
         quit()
 
@@ -193,6 +195,14 @@ def init_checkbox():
             ),
             sg.Checkbox(
                 "--no-pyi-file", key="--no-pyi-file", default=True, enable_events=True
+            ),
+            sg.Text("--jobs:"),
+            sg.InputText(
+                key="--jobs",
+                default_text="",
+                tooltip=f"default to {os.cpu_count()}",
+                size=(5, None),
+                enable_events=True,
             ),
         ],
         [
@@ -286,6 +296,8 @@ def update_cmd(event, values):
                         window["--onefile-tempdir-spec"].update(f"./{_name}_cache")
                 elif k == "--other-args":
                     cmd.append(v)
+                elif k == "--jobs":
+                    cmd.append(f"--jobs={v}")
                 else:
                     cmd.append(k)
             elif k == "file_path":
@@ -553,6 +565,12 @@ def main():
                 key="load_config",
                 enable_events=True,
             ),
+            sg.Button(
+                "nuitka_cache",
+                key="nuitka_cache",
+                tooltip="Open NUITKA_CACHE_DIR",
+                enable_events=True,
+            ),
         ],
         [
             sg.Output(
@@ -643,15 +661,23 @@ def main():
         except Exception:
             sg.popup_error(traceback.format_exc())
 
+    def nuitka_cache(event, values):
+        print("\nNUITKA_CACHE_DIR:", os.getenv("NUITKA_CACHE_DIR"), flush=True)
+        print("cache_dir:", nuitka_cache_path, flush=True)
+        if IS_WIN32:
+            subprocess.run(["explorer", nuitka_cache_path])
+
     actions = {
         "View": view_folder,
         "Remove": rm_cache_dir,
         "Cancel": kill_proc,
         "dump_config": dump_config,
         "load_config": load_config,
+        "nuitka_cache": nuitka_cache,
     }
     error = None
     ensure_python_path()
+    window.write_event_value("--output-dir", output_path.as_posix())
     while True:
         try:
             event, values = window.read()

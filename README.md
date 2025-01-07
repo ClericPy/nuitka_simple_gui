@@ -30,6 +30,9 @@ A simple GUI app of nuitka
 
 ### Changelog
 
+- 2025.1.7
+  - add `nuitka_cache` button, show `NUITKA_CACHE_DIR`
+  - add `--jobs`
 - 2025.1.6
   - add tooltip to plugin checkbox
   - mv ensure_python_path log to GUI textarea, for downloading gcc manually
