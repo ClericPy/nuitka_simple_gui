@@ -16,7 +16,7 @@ import FreeSimpleGUI as sg
 from nuitka.plugins.Plugins import loadPlugins, plugin_name2plugin_classes
 from nuitka.utils.AppDirs import getCacheDir
 
-__version__ = "2025.1.7"
+__version__ = "2025.3.7"
 sg.theme("default1")
 old_stderr = sys.stderr
 _sys = platform.system()
@@ -114,6 +114,16 @@ def ensure_python_path():
                 pass
     else:
         quit()
+
+
+def get_dir_size(path: Path):
+    total = 0
+    for entry in path.iterdir():
+        if entry.is_file():
+            total += entry.stat().st_size
+        elif entry.is_dir():
+            total += get_dir_size(entry)
+    return total
 
 
 def slice_by_size(seq, size):
@@ -345,7 +355,7 @@ def update_cmd(event, values):
         text += "\n" + subprocess.list2cmdline(pip_cmd)
     text += "\n" + subprocess.list2cmdline(cmd)
 
-    window["output"].update(text + f'\n{"- " * 50}')
+    window["output"].update(text + f"\n{'- ' * 50}")
     cmd_list.clear()
     cmd_list.extend(cmd)
 
@@ -666,6 +676,8 @@ def main():
         print("cache_dir:", nuitka_cache_path, flush=True)
         if IS_WIN32:
             subprocess.run(["explorer", nuitka_cache_path])
+        size = get_dir_size(Path(nuitka_cache_path))
+        print(f"{nuitka_cache_path}: {size / 1024**3:.1f} GB", flush=True)
 
     actions = {
         "View": view_folder,
