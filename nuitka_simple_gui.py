@@ -1,3 +1,5 @@
+import ast
+import inspect
 import itertools
 import json
 import os
@@ -15,8 +17,9 @@ from pathlib import Path
 import FreeSimpleGUI as sg
 from nuitka.plugins.Plugins import loadPlugins, plugin_name2plugin_classes
 from nuitka.utils.AppDirs import getCacheDir
+from nuitka.utils.Download import getCachedDownloadedMinGW64
 
-__version__ = "2025.3.7"
+__version__ = "2025.5.11"
 sg.theme("default1")
 old_stderr = sys.stderr
 _sys = platform.system()
@@ -47,6 +50,28 @@ non_cmd_events = {"dump_config", "load_config", "--onefile-tempdir-spec"}
 non_cmd_prefix = "____"
 window: sg.Window = None
 nuitka_cache_path = Path(getCacheDir("")).absolute()
+download_mingw_urls = []
+
+
+def init_download_urls():
+    source_code = inspect.getsource(getCachedDownloadedMinGW64)
+    tree = ast.parse(source_code)
+
+    class URLExtractor(ast.NodeVisitor):
+        def __init__(self):
+            self.urls = []
+
+        def visit_Assign(self, node):
+            if isinstance(node.targets[0], ast.Name) and node.targets[0].id == "url":
+                if isinstance(node.value, ast.Constant) and isinstance(
+                    node.value.value, str
+                ):
+                    self.urls.append(node.value.value)
+            self.generic_visit(node)
+
+    extractor = URLExtractor()
+    extractor.visit(tree)
+    download_mingw_urls.extend(extractor.urls)
 
 
 def ensure_python_path():
@@ -465,6 +490,7 @@ def beep():
 
 
 def main():
+    threading.Thread(target=init_download_urls, daemon=True).start()
     layout = [
         input_path("Entry Point:", "file_path", disable_input=True),
         [
@@ -675,9 +701,15 @@ def main():
         print("\nNUITKA_CACHE_DIR:", os.getenv("NUITKA_CACHE_DIR"), flush=True)
         print("cache_dir:", nuitka_cache_path, flush=True)
         if IS_WIN32:
-            subprocess.run(["explorer", nuitka_cache_path])
+            proc = subprocess.Popen(["explorer", nuitka_cache_path])
         size = get_dir_size(Path(nuitka_cache_path))
         print(f"{nuitka_cache_path}: {size / 1024**3:.1f} GB", flush=True)
+        machine = platform.machine()
+        print("platform.machine():", machine)
+        if IS_WIN32:
+            print(f"Download mingw64({machine}):")
+            print("\n".join(download_mingw_urls), flush=True)
+            proc.wait()
 
     actions = {
         "View": view_folder,
