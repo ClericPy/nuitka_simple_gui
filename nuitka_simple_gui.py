@@ -19,7 +19,7 @@ from nuitka.plugins.Plugins import loadPlugins, plugin_name2plugin_classes
 from nuitka.utils.AppDirs import getCacheDir
 from nuitka.utils.Download import getCachedDownloadedMinGW64
 
-__version__ = "2025.5.11"
+__version__ = "2025.7.8"
 sg.theme("default1")
 old_stderr = sys.stderr
 _sys = platform.system()
@@ -50,10 +50,12 @@ non_cmd_events = {"dump_config", "load_config", "--onefile-tempdir-spec"}
 non_cmd_prefix = "____"
 window: sg.Window = None
 nuitka_cache_path = Path(getCacheDir("")).absolute()
-download_mingw_urls = []
+download_mingw_urls: list = []
 
 
 def init_download_urls():
+    if download_mingw_urls:
+        return
     source_code = inspect.getsource(getCachedDownloadedMinGW64)
     tree = ast.parse(source_code)
 
@@ -330,7 +332,7 @@ def update_cmd(event, values):
                     if event == k:
                         window["--onefile-tempdir-spec"].update(f"./{_name}_cache")
                 elif k == "--other-args":
-                    cmd.append(v)
+                    cmd.extend(v.split(","))
                 elif k == "--jobs":
                     cmd.append(f"--jobs={v}")
                 else:
@@ -490,7 +492,6 @@ def beep():
 
 
 def main():
-    threading.Thread(target=init_download_urls, daemon=True).start()
     layout = [
         input_path("Entry Point:", "file_path", disable_input=True),
         [
@@ -559,10 +560,16 @@ def main():
         ],
         [
             sg.Text(
-                "Custom Args:".ljust(20),
+                "Custom Args(,):".ljust(20),
                 size=(15, None),
+                tooltip="separate by , (comma)",
             ),
-            sg.Input("", key="--other-args", enable_events=True),
+            sg.Input(
+                "",
+                key="--other-args",
+                enable_events=True,
+                tooltip="separate by , (comma)",
+            ),
         ],
         input_path("Pip Args:".ljust(20), "pip_args", sg.FilesBrowse),
         [
@@ -707,6 +714,7 @@ def main():
         machine = platform.machine()
         print("platform.machine():", machine)
         if IS_WIN32:
+            init_download_urls()
             print(f"Download mingw64({machine}):")
             print("\n".join(download_mingw_urls), flush=True)
             proc.wait()
