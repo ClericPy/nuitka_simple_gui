@@ -19,7 +19,7 @@ from nuitka.plugins.Plugins import loadPlugins, plugin_name2plugin_classes
 from nuitka.utils.AppDirs import getCacheDir
 from nuitka.utils.Download import getCachedDownloadedMinGW64
 
-__version__ = "2025.7.8"
+__version__ = "2025.9.23"
 sg.theme("default1")
 old_stderr = sys.stderr
 _sys = platform.system()
@@ -287,6 +287,7 @@ def update_disabled(k, v):
         window["--onefile-tempdir-spec"].update(disabled=not v)
         window["is_compress"].update(disabled=v)
         window["need_start_file"].update(disabled=v)
+        window["tmp_cached"].update(disabled=not v)
 
 
 def update_cmd(event, values):
@@ -306,6 +307,11 @@ def update_cmd(event, values):
                 if values["--onefile-tempdir-spec"]:
                     p = values["--onefile-tempdir-spec"]
                     cmd.append(f"--onefile-tempdir-spec={p}")
+                tmp_cached = values.get("tmp_cached", False)
+                if tmp_cached:
+                    cmd.append("--onefile-cache-mode=cached")
+                else:
+                    cmd.append("--onefile-cache-mode=temporary")
             continue
         elif k in non_cmd_events or k.startswith(non_cmd_prefix):
             continue
@@ -514,7 +520,7 @@ def main():
             sg.Input(
                 f"./{file_path.stem}_cache",
                 key="--onefile-tempdir-spec",
-                size=(30, None),
+                size=(20, None),
                 tooltip=r"""--onefile-tempdir-spec
 %TEMP%	User temporary file directory	C:\Users\...\AppData\Locals\Temp
 %PID%	Process ID	2772
@@ -528,6 +534,18 @@ def main():
 %HOME%	Home directory for the user.	/home/somebody
 %NONE%	When provided for file outputs, None is used	see notice below
 %NULL%	When provided for file outputs, os.devnull is used	see notice below
+""",
+                enable_events=True,
+                disabled=True,
+            ),
+            sg.Checkbox(
+                "keep cache",
+                default=False,
+                key="tmp_cached",
+                size=(10, None),
+                tooltip=r"""
+Checked  : `--onefile-cache-mode=tmp_cached`, to keep the tempdir exist;
+Unchecked: `--onefile-cache-mode=temporary`, to clear the tempdir after each run;
 """,
                 enable_events=True,
                 disabled=True,

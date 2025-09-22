@@ -12,6 +12,7 @@ classifiers = ["License :: OSI Approved :: MIT License"]
 dynamic = ["version"]
 dependencies = ["FreeSimpleGUI", "nuitka"]
 scripts = { nuitka_simple_gui = "nuitka_simple_gui:main" }
+requires-python = "<3.13"
 
 [project.urls]
 Home = "https://github.com/ClericPy/nuitka_simple_gui"
