@@ -23,6 +23,7 @@ A simple GUI app for Nuitka.
 7. Added a beep notification after finishing on Windows (since 2023.07.18)
 8. Added `dump-config` and `load-config` features (since 2023.07.27)
 9. For more changes, check the changelog below
+10. Fix Linux & macOS compatibility (since 2025.11.18)
 
 ## User Manual
 
