@@ -19,7 +19,7 @@ from nuitka.plugins.Plugins import loadPlugins, plugin_name2plugin_classes
 from nuitka.utils.AppDirs import getCacheDir
 from nuitka.utils.Download import getCachedDownloadedMinGW64
 
-__version__ = "2025.9.23"
+__version__ = "2025.11.18"
 sg.theme("default1")
 old_stderr = sys.stderr
 _sys = platform.system()
@@ -194,9 +194,9 @@ def init_checkbox():
                     "--windows-disable-console",
                     key="--windows-disable-console",
                     enable_events=True,
-                )
-                if IS_WIN32
-                else [],
+                    disabled=not IS_WIN32,
+                    visible=IS_WIN32,
+                ),
                 sg.InputText(
                     key="--windows-icon",
                     enable_events=True,
@@ -207,16 +207,16 @@ def init_checkbox():
                     key=f"{non_cmd_prefix}--windows-icon",
                     target="--windows-icon",
                     enable_events=True,
-                )
-                if IS_WIN32
-                else [],
+                    disabled=not IS_WIN32,
+                    visible=IS_WIN32,
+                ),
                 sg.Checkbox(
                     "--macos-disable-console",
                     key="--macos-disable-console",
                     enable_events=True,
-                )
-                if IS_MAC
-                else [],
+                    disabled=not IS_MAC,
+                    visible=IS_MAC,
+                ),
             ],
             sg.Checkbox(
                 "--nofollow-imports",
@@ -613,9 +613,9 @@ Unchecked: `--onefile-cache-mode=temporary`, to clear the tempdir after each run
                 default=False,
                 tooltip="Add app.bat for shortcut",
                 enable_events=True,
-            )
-            if IS_WIN32
-            else [],
+                disabled=not IS_WIN32,
+                visible=IS_WIN32,
+            ),
             sg.Button(
                 "dump_config",
                 key="dump_config",
