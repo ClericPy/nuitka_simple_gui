@@ -19,7 +19,7 @@ from nuitka.plugins.Plugins import loadPlugins, plugin_name2plugin_classes
 from nuitka.utils.AppDirs import getCacheDir
 from nuitka.utils.Download import getCachedDownloadedMinGW64
 
-__version__ = "2025.11.18"
+__version__ = "2025.11.20"
 sg.theme("default1")
 old_stderr = sys.stderr
 _sys = platform.system()
@@ -692,11 +692,13 @@ Unchecked: `--onefile-cache-mode=temporary`, to clear the tempdir after each run
         _path = sg.popup_get_file(
             "Save config.json",
             default_path=(Path.cwd() / "config.json").absolute().as_posix(),
+            save_as=True,
         )
         if not _path:
             return
         path = Path(_path)
         try:
+            values["build-system"] = "nuitka_simple_gui"
             text = json.dumps(values, ensure_ascii=False, sort_keys=True, indent=2)
             path.write_text(text)
         except Exception:
@@ -712,7 +714,9 @@ Unchecked: `--onefile-cache-mode=temporary`, to clear the tempdir after each run
         path = Path(_path)
         try:
             values_cache.clear()
-            values_cache.update(json.loads(path.read_text()))
+            data = json.loads(path.read_text())
+            data.pop("build-system", None)
+            values_cache.update(data)
             for k, v in values_cache.items():
                 # print(type(window[k]), k)
                 if isinstance(window[k], sg.Button):
