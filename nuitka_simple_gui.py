@@ -719,10 +719,13 @@ Unchecked: `--onefile-cache-mode=temporary`, to clear the tempdir after each run
             values_cache.update(data)
             for k, v in values_cache.items():
                 # print(type(window[k]), k)
-                if isinstance(window[k], sg.Button):
+                ele = window.find_element(k, silent_on_error=True, supress_raise=True)
+                if ele is None:
+                    continue
+                if isinstance(ele, sg.Button):
                     continue
                 update_disabled(k, v)
-                window[k].update(v)
+                ele.update(v)
         except Exception:
             sg.popup_error(traceback.format_exc())
 
