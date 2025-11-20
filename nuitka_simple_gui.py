@@ -19,7 +19,7 @@ from nuitka.plugins.Plugins import loadPlugins, plugin_name2plugin_classes
 from nuitka.utils.AppDirs import getCacheDir
 from nuitka.utils.Download import getCachedDownloadedMinGW64
 
-__version__ = "2025.11.20"
+__version__ = "2025.11.21"
 sg.theme("default1")
 old_stderr = sys.stderr
 _sys = platform.system()
@@ -369,7 +369,7 @@ def update_cmd(event, values):
                 pip_cmd.extend(pip_args)
                 pips_path = (output_path / f"{file_path.stem}.pips").as_posix()
                 pip_cmd.extend(["-t", pips_path])
-                cmd.append(f"--include-data-dir={pips_path}=./")
+                cmd.append(f"--include-raw-dir={pips_path}=./")
         else:
             if k == "pip_args":
                 pip_cmd.clear()
