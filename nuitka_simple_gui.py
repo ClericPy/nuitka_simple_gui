@@ -198,7 +198,7 @@ def init_checkbox():
                     enable_events=True,
                     disabled=not IS_WIN32,
                     visible=IS_WIN32,
-                    size=(10, None),
+                    size=(6, None),
                 ),
                 sg.InputText(
                     key="--windows-icon",
@@ -214,8 +214,22 @@ def init_checkbox():
                     visible=IS_WIN32,
                 ),
                 sg.Checkbox(
-                    "--macos-disable-console",
-                    key="--macos-disable-console",
+                    "--macos-create-app-bundle",
+                    key="--macos-create-app-bundle",
+                    enable_events=True,
+                    disabled=not IS_MAC,
+                    visible=IS_MAC,
+                    tooltip="Create a macOS application bundle (no console)",
+                ),
+                sg.InputText(
+                    key="--macos-app-icon",
+                    enable_events=True,
+                    visible=False,
+                ),
+                sg.FileBrowse(
+                    button_text="--macos-app-icon",
+                    key=f"{non_cmd_prefix}--macos-app-icon",
+                    target="--macos-app-icon",
                     enable_events=True,
                     disabled=not IS_MAC,
                     visible=IS_MAC,
@@ -334,6 +348,9 @@ def update_cmd(event, values):
                         cmd.append(f"--windows-icon-from-ico={p}")
                 elif k == "--windows-console-mode":
                     cmd.append(f"--windows-console-mode={v}")
+                elif k == "--macos-app-icon":
+                    p = Path(v).as_posix()
+                    cmd.append(f"--macos-app-icon={p}")
                 elif k == "--output-dir":
                     output_path = Path(v)
                     cmd.append(f"--output-dir={output_path.as_posix()}")
