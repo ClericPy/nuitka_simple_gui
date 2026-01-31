@@ -55,6 +55,17 @@ I'm still thinking about it. Stay tuned!
 
 ### Changelog
 
+- 2026.1.31
+  - Use `--windows-console-mode` dropdown instead of deprecated `--windows-disable-console`
+  - Use `--macos-create-app-bundle` instead of deprecated `--macos-disable-console`
+  - Added `--macos-app-icon` option for macOS
+- 2025.11.21
+  - Fixed `--include-data-dir` -> `--include-raw-dir` for nuitka compatibility
+  - Updated config load logic
+- 2025.11.20
+  - Fixed `popup_get_file` for `dump_config`
+- 2025.11.18
+  - Fixed Linux & macOS compatibility
 - 2025.9.23
   - Added a "keep cache" checkbox for `--onefile` mode
 - 2025.1.7
