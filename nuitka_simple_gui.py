@@ -19,7 +19,7 @@ from nuitka.plugins.Plugins import loadPlugins, plugin_name2plugin_classes
 from nuitka.utils.AppDirs import getCacheDir
 from nuitka.utils.Download import getCachedDownloadedMinGW64
 
-__version__ = "2025.11.21"
+__version__ = "2026.01.31"
 sg.theme("default1")
 old_stderr = sys.stderr
 _sys = platform.system()
@@ -190,12 +190,15 @@ def init_checkbox():
                 sg.Radio(
                     "--module", group_id="module", key="--module", enable_events=True
                 ),
-                sg.Checkbox(
-                    "--windows-disable-console",
-                    key="--windows-disable-console",
+                sg.Text("--windows-console-mode:", visible=IS_WIN32),
+                sg.Combo(
+                    ["", "force", "disable", "attach"],
+                    default_value="",
+                    key="--windows-console-mode",
                     enable_events=True,
                     disabled=not IS_WIN32,
                     visible=IS_WIN32,
+                    size=(10, None),
                 ),
                 sg.InputText(
                     key="--windows-icon",
@@ -329,6 +332,8 @@ def update_cmd(event, values):
                         cmd.append(f"--windows-icon-from-ico={p}")
                     else:
                         cmd.append(f"--windows-icon-from-ico={p}")
+                elif k == "--windows-console-mode":
+                    cmd.append(f"--windows-console-mode={v}")
                 elif k == "--output-dir":
                     output_path = Path(v)
                     cmd.append(f"--output-dir={output_path.as_posix()}")
