@@ -12,6 +12,16 @@
 
 A simple GUI app for Nuitka.
 
+> **Tip**: On Windows, [Zig](https://ziglang.org/) is recommended as the C compiler — lightweight, no extra setup, and supports Python 3.13+ (which MinGW64 does not yet). Install with:
+>
+> `pip install nuitka_simple_gui[zig]`
+
+### Optional Dependencies
+
+| Extra | Package | Purpose |
+|-------|---------|---------|
+| `zig` | `ziglang>=0.16.0` | Use Zig as C compiler (`--zig` / `CC` auto-detect) |
+
 ## Features
 
 1. Easily build your Python code into executable files using **Nuitka**
@@ -24,6 +34,7 @@ A simple GUI app for Nuitka.
 8. Added `dump-config` and `load-config` features (since 2023.07.27)
 9. For more changes, check the changelog below
 10. Fix Linux & macOS compatibility (since 2025.11.18)
+11. Added `--zig` build tool option and `CC` input for custom compiler path, auto-detects [ziglang](https://github.com/nicholasgasior/python-ziglang) (install with `pip install nuitka_simple_gui[zig]`)
 
 ## User Manual
 
@@ -41,9 +52,8 @@ I'm still thinking about it. Stay tuned!
 
 ### WARNING
 
-- Nuitka currently supports Python 3.6 to 3.12 (as of 2025-09-23). Python 3.13 is not supported yet.
-- On Windows, Nuitka needs a C compiler. You can install [MinGW64](https://nuitka.net/doc/user-manual.html#mingw-windows) or [Visual Studio](https://nuitka.net/doc/user-manual.html#visual-c-compiler-windows).
-  - If you don't have a C compiler, just run `python -m nuitka temp.py` and Nuitka will try to download MinGW64 for you automatically.
+- On Windows, Nuitka needs a C compiler. You can install [MinGW64](https://nuitka.net/doc/user-manual.html#mingw-windows), [Visual Studio](https://nuitka.net/doc/user-manual.html#visual-c-compiler-windows), or [Zig](https://ziglang.org/) (recommended).
+  - If you don't have a C compiler, just run `python -m nuitka --version --assume-yes-for-downloads` and Nuitka will try to download MinGW64 for you automatically.
 
 ---
 
@@ -55,6 +65,12 @@ I'm still thinking about it. Stay tuned!
 
 ### Changelog
 
+- 2026.5.28
+  - Added `--zig` build tool option and `CC` input with auto-detect ziglang support
+  - Added optional dependency `pip install nuitka_simple_gui[zig]` (ziglang is no longer required)
+  - Added `requires-python >= 3.11` to project metadata
+  - Updated `--onefile-tempdir-spec` tooltip with correct `{}` token syntax and new tokens (`PROGRAM_DIR`, `FILE_VERSION`, `PRODUCT_VERSION`)
+  - Added warning for Windows zig mode: onefile with relative paths and "keep cache" unchecked may fail
 - 2026.1.31
   - Use `--windows-console-mode` dropdown instead of deprecated `--windows-disable-console`
   - Use `--macos-create-app-bundle` instead of deprecated `--macos-disable-console`

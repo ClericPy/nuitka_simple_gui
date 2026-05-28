@@ -19,7 +19,7 @@ from nuitka.plugins.Plugins import loadPlugins, plugin_name2plugin_classes
 from nuitka.utils.AppDirs import getCacheDir
 from nuitka.utils.Download import getCachedDownloadedMinGW64
 
-__version__ = "2026.01.31"
+__version__ = "2026.05.30"
 sg.theme("default1")
 old_stderr = sys.stderr
 _sys = platform.system()
@@ -46,6 +46,16 @@ if python_exe_path.endswith("pythonw"):
     python_exe_path = python_exe_path[:-1]
 elif python_exe_path.endswith("pythonw.exe"):
     python_exe_path = python_exe_path[:-5] + ".exe"
+def _find_zig_cc() -> str:
+    try:
+        from ziglang import __file__ as _pkg
+    except ImportError:
+        return ""
+    p = Path(_pkg).parent / ("zig.exe" if IS_WIN32 else "zig")
+    return str(p) if p.is_file() else ""
+
+
+ZIG_CC_PATH = _find_zig_cc()
 non_cmd_events = {"dump_config", "load_config", "--onefile-tempdir-spec"}
 non_cmd_prefix = "____"
 window: sg.Window = None
@@ -269,6 +279,7 @@ def init_checkbox():
             sg.Radio(
                 "--clang", group_id="build_tool", key="--clang", enable_events=True
             ),
+            sg.Radio("--zig", group_id="build_tool", key="--zig", enable_events=True),
             sg.Radio(
                 "None", default=True, group_id="build_tool", key="", enable_events=True
             ),
@@ -276,6 +287,20 @@ def init_checkbox():
                 "--assume-yes-for-downloads",
                 key="--assume-yes-for-downloads",
                 default=True,
+                enable_events=True,
+            ),
+        ],
+        [
+            sg.Checkbox(
+                "CC:",
+                key="use_zig_cc",
+                default=bool(ZIG_CC_PATH),
+                enable_events=True,
+            ),
+            sg.InputText(
+                ZIG_CC_PATH,
+                key="cc_path",
+                size=(60, None),
                 enable_events=True,
             ),
         ],
@@ -432,6 +457,10 @@ def print_sep(text: str):
 
 def start_build():
     global RUNNING_PROC, STOPPING_PROC
+    if values_cache.get("use_zig_cc"):
+        os.environ["CC"] = values_cache.get("cc_path", "")
+    elif "CC" in os.environ:
+        del os.environ["CC"]
     window["Start"].update(disabled=True)
     window["Cancel"].update(disabled=False)
     try:
@@ -457,7 +486,6 @@ def start_build():
         print_sep("Build Start")
         RUNNING_PROC = subprocess.Popen(
             cmd_list,
-            shell=True,
             # creationflags=subprocess.CREATE_NO_WINDOW,
             stdout=subprocess.PIPE,
             stderr=subprocess.STDOUT,
@@ -544,30 +572,35 @@ def main():
                 key="--onefile-tempdir-spec",
                 size=(20, None),
                 tooltip=r"""--onefile-tempdir-spec
-%TEMP%	User temporary file directory	C:\Users\...\AppData\Locals\Temp
-%PID%	Process ID	2772
-%TIME%	Time in seconds since the epoch.	1299852985
-%PROGRAM%	Full program run-time filename of executable.	C:\SomeWhere\YourOnefile.exe
-%PROGRAM_BASE%	No-suffix of run-time filename of executable.	C:\SomeWhere\YourOnefile
-%CACHE_DIR%	Cache directory for the user.	C:\Users\SomeBody\AppData\Local
-%COMPANY%	Value given as --company-name	YourCompanyName
-%PRODUCT%	Value given as --product-name	YourProductName
-%VERSION%	Combination of --file-version & --product-version	3.0.0.0-1.0.0.0
-%HOME%	Home directory for the user.	/home/somebody
-%NONE%	When provided for file outputs, None is used	see notice below
-%NULL%	When provided for file outputs, os.devnull is used	see notice below
+{TEMP}	User temporary file directory	C:\Users\...\AppData\Locals\Temp
+{PID}	Process ID	2772
+{TIME}	Time in seconds since the epoch.	1299852985
+{PROGRAM}	Full program run-time filename of executable.	C:\SomeWhere\YourOnefile.exe
+{PROGRAM_BASE}	No-suffix of run-time filename of executable.	C:\SomeWhere\YourOnefile
+{PROGRAM_DIR}	Containing directory of executable.	C:\SomeWhere
+{CACHE_DIR}	Cache directory for the user.	C:\Users\SomeBody\AppData\Local
+{COMPANY}	Value given as --company-name	YourCompanyName
+{PRODUCT}	Value given as --product-name	YourProductName
+{VERSION}	Combination of --file-version & --product-version	3.0.0.0-1.0.0.0
+{FILE_VERSION}	Value given as --file-version	3.0.0.0
+{PRODUCT_VERSION}	Value given as --product-version	1.0.0.0
+{HOME}	Home directory for the user.	/home/somebody
+{NONE}	When provided for file outputs, None is used	see notice below
+{NULL}	When provided for file outputs, os.devnull is used	see notice below
 """,
                 enable_events=True,
                 disabled=True,
             ),
             sg.Checkbox(
                 "keep cache",
-                default=False,
+                default=True,
                 key="tmp_cached",
                 size=(10, None),
                 tooltip=r"""
-Checked  : `--onefile-cache-mode=tmp_cached`, to keep the tempdir exist;
+Checked  : `--onefile-cache-mode=cached`, to keep the tempdir exist;
 Unchecked: `--onefile-cache-mode=temporary`, to clear the tempdir after each run;
+
+WARNING: Windows zig mode + unchecked may fail with relative paths. Use {TEMP}-based path, or check this box to keep cache.
 """,
                 enable_events=True,
                 disabled=True,
@@ -775,7 +808,6 @@ Unchecked: `--onefile-cache-mode=temporary`, to clear the tempdir after each run
         "nuitka_cache": nuitka_cache,
     }
     error = None
-    ensure_python_path()
     window.write_event_value("--output-dir", output_path.as_posix())
     while True:
         try:
@@ -794,6 +826,8 @@ Unchecked: `--onefile-cache-mode=temporary`, to clear the tempdir after each run
                 break
             # window['output'].update(values)
             update_plugin_list(event, values)
+            if event == "--mingw64" and values.get("--mingw64"):
+                ensure_python_path()
             update_cmd(event, values)
             if event == "Start" and not RUNNING_PROC:
                 threading.Thread(target=start_build, daemon=True).start()

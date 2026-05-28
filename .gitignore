@@ -160,3 +160,4 @@ cython_debug/
 #.idea/
 *_output/
 temp.py
+nuitka-crash-report.xml

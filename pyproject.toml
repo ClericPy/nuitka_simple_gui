@@ -10,13 +10,16 @@ readme = "README.md"
 license = {file = "LICENSE"}
 classifiers = ["License :: OSI Approved :: MIT License"]
 dynamic = ["version"]
+requires-python = ">=3.11"
 dependencies = [
     "FreeSimpleGUI",
-    "nuitka",
+    "nuitka>=4.1.1",
     "pip",
 ]
 scripts = { nuitka_simple_gui = "nuitka_simple_gui:main" }
 
+[project.optional-dependencies]
+zig = ["ziglang>=0.16.0"]
 
 [project.urls]
 Home = "https://github.com/ClericPy/nuitka_simple_gui"
