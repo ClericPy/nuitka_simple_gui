@@ -1,4 +1,5 @@
 import ast
+import importlib
 import inspect
 import itertools
 import json
@@ -19,7 +20,7 @@ from nuitka.plugins.Plugins import loadPlugins, plugin_name2plugin_classes
 from nuitka.utils.AppDirs import getCacheDir
 from nuitka.utils.Download import getCachedDownloadedMinGW64
 
-__version__ = "2026.05.30"
+__version__ = "2026.07.19"
 sg.theme("default1")
 old_stderr = sys.stderr
 _sys = platform.system()
@@ -41,6 +42,8 @@ output_path = Path("./nuitka_output")
 STOPPING_PROC = False
 RUNNING_PROC: typing.Optional[subprocess.Popen] = None
 values_cache: dict = {}
+_config_path: Path = Path.cwd() / "config.json"
+_scan_continue = threading.Event()
 python_exe_path = Path(sys.executable).as_posix()
 if python_exe_path.endswith("pythonw"):
     python_exe_path = python_exe_path[:-1]
@@ -61,6 +64,169 @@ non_cmd_prefix = "____"
 window: sg.Window = None
 nuitka_cache_path = Path(getCacheDir("")).absolute()
 download_mingw_urls: list = []
+
+
+def _get_stdlib_no_auto_include() -> frozenset:
+    """Return stdlib modules that Nuitka won't auto-include in standalone mode."""
+    try:
+        from nuitka.importing.StandardLibrary import (
+            _stdlib_no_auto_inclusion_list,
+        )
+
+        return frozenset(_stdlib_no_auto_inclusion_list)
+    except ImportError:
+        pass
+    # fallback: hardcoded copy of nuitka's exclusion list
+    return frozenset(
+        {
+            "_bisect",
+            "_bz2",
+            "_contextvars",
+            "_crypt",
+            "_csv",
+            "_ctypes",
+            "_curses",
+            "_curses_panel",
+            "_dbm",
+            "_decimal",
+            "_distutils_system_mod",
+            "_elementtree",
+            "_hashlib",
+            "_heapq",
+            "_json",
+            "_lzma",
+            "_multiprocessing",
+            "_opcode",
+            "_posixsubprocess",
+            "_pydecimal",
+            "_queue",
+            "_socket",
+            "_sqlite3",
+            "_ssl",
+            "_tkinter",
+            "_uuid",
+            "aifc",
+            "antigravity",
+            "argparse",
+            "array",
+            "asyncio",
+            "asyncore",
+            "asynchat",
+            "audioop",
+            "bdb",
+            "bz2",
+            "compileall",
+            "concurrent",
+            "contextvars",
+            "csv",
+            "ctypes",
+            "curses",
+            "dbm",
+            "decimal",
+            "distutils",
+            "doctest",
+            "email",
+            "fractions",
+            "getpass",
+            "grp",
+            "hashlib",
+            "hmac",
+            "http",
+            "idlelib",
+            "json.tool",
+            "lib2to3",
+            "logging",
+            "lzma",
+            "mailbox",
+            "msilib",
+            "multiprocessing",
+            "nntplib",
+            "optparse",
+            "pdb",
+            "plistlib",
+            "profile",
+            "py_compile",
+            "pyclbr",
+            "pydoc",
+            "pydoc_data",
+            "queue",
+            "random",
+            "readline",
+            "runpy",
+            "secrets",
+            "select",
+            "shelve",
+            "site",
+            "sitecustomize",
+            "smtpd",
+            "smtplib",
+            "socket",
+            "sqlite3",
+            "ssl",
+            "statistics",
+            "subprocess",
+            "sunau",
+            "tabnanny",
+            "telnetlib",
+            "tempfile",
+            "termios",
+            "textwrap",
+            "this",
+            "tkinter",
+            "tty",
+            "unittest",
+            "urllib",
+            "uuid",
+            "venv",
+            "wave",
+            "wsgiref",
+            "xml",
+            "xmlrpc",
+            "zoneinfo",
+            "zipapp",
+        }
+    )
+
+
+def scan_stdlib_imports(path: Path) -> tuple[list[str], list[str]]:
+    """Scan .py files for stdlib imports, return (packages, modules).
+
+    Package detection: hasattr(module, '__path__').
+    Unimportable modules (e.g. distutils on 3.12+) are skipped."""
+    if not path.exists():
+        return [], []
+    stdlib = _get_stdlib_no_auto_include()
+    found: set[str] = set()
+    files = [path] if path.is_file() else list(path.rglob("*.py"))
+    for py_file in files:
+        try:
+            tree = ast.parse(py_file.read_text(encoding="utf-8", errors="replace"))
+        except (SyntaxError, OSError):
+            continue
+        for node in ast.walk(tree):
+            if isinstance(node, ast.Import):
+                for alias in node.names:
+                    top = alias.name.split(".")[0]
+                    if top in stdlib:
+                        found.add(top)
+            elif isinstance(node, ast.ImportFrom):
+                if node.module:
+                    top = node.module.split(".")[0]
+                    if top in stdlib:
+                        found.add(top)
+
+    packages: list[str] = []
+    modules: list[str] = []
+    for mod in found:
+        try:
+            m = importlib.import_module(mod)
+        except Exception:
+            continue
+        if hasattr(m, "__path__"):
+            packages.append(mod)
+        else:
+            modules.append(mod)
+    return sorted(packages), sorted(modules)
 
 
 def init_download_urls():
@@ -455,6 +621,83 @@ def print_sep(text: str):
     )
 
 
+def _show_stdlib_popup(packages: list[str], modules: list[str]):
+    """Modal popup on main thread to review/edit scanned includes."""
+    existing_pkg = values_cache.get("--include-package", "")
+    existing_mod = values_cache.get("--include-module", "")
+    pkg_set = set(existing_pkg.split()) if existing_pkg.strip() else set()
+    mod_set = set(existing_mod.split()) if existing_mod.strip() else set()
+    if all(p in pkg_set for p in packages) and all(m in mod_set for m in modules):
+        _scan_continue.set()
+        return
+
+    pkg_text = " ".join(packages)
+    mod_text = " ".join(modules)
+    layout = [
+        [sg.Text("Stdlib imports found in .pips dir. Edit if needed, then proceed:")],
+        [sg.Text("--include-package:")],
+        [sg.Input(pkg_text, key="--pkgs", size=(70, None))],
+        [sg.Text("--include-module:")],
+        [sg.Input(mod_text, key="--mods", size=(70, None))],
+        [
+            sg.Button("Fill and continue", key="fill"),
+            sg.Button("Abort", key="abort"),
+        ],
+    ]
+    popup = sg.Window("Stdlib Imports", layout, modal=True)
+    while True:
+        ev, vals = popup.read()
+        if ev in (sg.WIN_CLOSED, "abort"):
+            global STOPPING_PROC
+            STOPPING_PROC = True
+            break
+        elif ev == "fill":
+            new_pkg = (existing_pkg + " " + vals["--pkgs"]).strip() if existing_pkg.strip() else vals["--pkgs"]
+            new_mod = (existing_mod + " " + vals["--mods"]).strip() if existing_mod.strip() else vals["--mods"]
+            window["--include-package"].update(new_pkg)
+            window["--include-module"].update(new_mod)
+            values_cache["--include-package"] = new_pkg
+            values_cache["--include-module"] = new_mod
+            break
+    popup.close()
+    _scan_continue.set()
+
+
+def _print_stdlib_scan():
+    """Scan .pips dir for stdlib imports. Pause build to let user review."""
+    pips_dir = output_path / f"{file_path.stem}.pips"
+    packages, modules = scan_stdlib_imports(pips_dir)
+
+    print("\n[Stdlib Imports]", flush=True)
+    if not packages and not modules:
+        print("  No stdlib imports found.", flush=True)
+        return False
+    if packages:
+        print(f"  --include-package: {' '.join(packages)}", flush=True)
+    if modules:
+        print(f"  --include-module: {' '.join(modules)}", flush=True)
+    _scan_continue.clear()
+    window.write_event_value("--stdlib-imports", (packages, modules))
+    print("[Paused] Waiting for user decision...", flush=True)
+    _scan_continue.wait()
+    if STOPPING_PROC:
+        raise ValueError("Build stopped by user after stdlib scan.")
+    print("[Resumed] Continuing build.", flush=True)
+    return True
+
+
+def _sync_includes_to_cmd_list():
+    """Sync --include-package/--include-module from values_cache to cmd_list.
+
+    window[key].update() doesn't fire update_cmd, so sync explicitly."""
+    for opt in ("--include-package", "--include-module"):
+        cmd_list[:] = [c for c in cmd_list if not c.startswith(opt + "=")]
+        val = values_cache.get(opt, "").strip()
+        if val:
+            for v in val.split():
+                cmd_list.append(f"{opt}={v}")
+
+
 def start_build():
     global RUNNING_PROC, STOPPING_PROC
     if values_cache.get("use_zig_cc"):
@@ -483,6 +726,10 @@ def start_build():
             if code != 0:
                 raise ValueError("Bad return code: %s" % code)
             print_sep('"pip install" Finished')
+        if values_cache.get("scan_pips", False):
+            scanned = _print_stdlib_scan()
+            if scanned:
+                _sync_includes_to_cmd_list()
         print_sep("Build Start")
         RUNNING_PROC = subprocess.Popen(
             cmd_list,
@@ -497,7 +744,18 @@ def start_build():
                 break
         code = RUNNING_PROC.wait()
         if code != 0:
-            raise ValueError("Bad return code: %s" % code)
+            # Nuitka may fail on cleanup (e.g. antivirus locking .build) while output exists
+            dist_dir = output_path / f"{file_path.stem}.dist"
+            exe_file = output_path / f"{file_path.stem}.exe"
+            has_output = dist_dir.is_dir() or exe_file.is_file()
+            if has_output:
+                print(
+                    "[WARNING] Nuitka returned %s, but output exists (likely cleanup failed). Continuing."
+                    % code,
+                    flush=True,
+                )
+            else:
+                raise ValueError("Bad return code: %s" % code)
         print_sep("Build Success")
         app_name = file_path.stem
         if values_cache["need_start_file"] and not window["need_start_file"].Disabled:
@@ -617,6 +875,13 @@ WARNING: Windows zig mode + unchecked may fail with relative paths. Use {TEMP}-b
                 key="--include-package",
                 tooltip="separate by Space",
                 enable_events=True,
+            ),
+            sg.Checkbox(
+                "scan_pips",
+                default=False,
+                key="scan_pips",
+                enable_events=True,
+                tooltip="Enable to auto-scan .py files in .pips dir for stdlib imports.\nUse this when stdlib ModuleNotFoundError occurs at runtime with --nofollow-imports.",
             ),
         ],
         [
@@ -744,14 +1009,16 @@ WARNING: Windows zig mode + unchecked may fail with relative paths. Use {TEMP}-b
                     continue
 
     def dump_config(event, values):
+        global _config_path
         _path = sg.popup_get_file(
             "Save config.json",
-            default_path=(Path.cwd() / "config.json").absolute().as_posix(),
+            default_path=_config_path.absolute().as_posix(),
             save_as=True,
         )
         if not _path:
             return
         path = Path(_path)
+        _config_path = path
         try:
             values["build-system"] = "nuitka_simple_gui"
             text = json.dumps(values, ensure_ascii=False, sort_keys=True, indent=2)
@@ -760,13 +1027,15 @@ WARNING: Windows zig mode + unchecked may fail with relative paths. Use {TEMP}-b
             sg.popup_error(traceback.format_exc())
 
     def load_config(event, values):
+        global _config_path
         _path = sg.popup_get_file(
             "Load config.json",
-            default_path=(Path.cwd() / "config.json").absolute().as_posix(),
+            default_path=_config_path.absolute().as_posix(),
         )
         if not _path:
             return
         path = Path(_path)
+        _config_path = path
         try:
             values_cache.clear()
             data = json.loads(path.read_text())
@@ -799,6 +1068,10 @@ WARNING: Windows zig mode + unchecked may fail with relative paths. Use {TEMP}-b
             print("\n".join(download_mingw_urls), flush=True)
             proc.wait()
 
+    def show_stdlib_imports(event, values):
+        packages, modules = values["--stdlib-imports"]
+        _show_stdlib_popup(packages, modules)
+
     actions = {
         "View": view_folder,
         "Remove": rm_cache_dir,
@@ -806,6 +1079,7 @@ WARNING: Windows zig mode + unchecked may fail with relative paths. Use {TEMP}-b
         "dump_config": dump_config,
         "load_config": load_config,
         "nuitka_cache": nuitka_cache,
+        "--stdlib-imports": show_stdlib_imports,
     }
     error = None
     window.write_event_value("--output-dir", output_path.as_posix())

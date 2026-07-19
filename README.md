@@ -35,6 +35,7 @@ A simple GUI app for Nuitka.
 9. For more changes, check the changelog below
 10. Fix Linux & macOS compatibility (since 2025.11.18)
 11. Added `--zig` build tool option and `CC` input for custom compiler path, auto-detects [ziglang](https://github.com/nicholasgasior/python-ziglang) (install with `pip install nuitka_simple_gui[zig]`)
+12. Added `scan_pips` checkbox: scans `.py` files in `.pips` dir for stdlib imports, auto-fills `--include-package` / `--include-module` to prevent `ModuleNotFoundError` with `--nofollow-imports`
 
 ## User Manual
 
